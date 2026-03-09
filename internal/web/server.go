@@ -205,7 +205,12 @@ func (s *Server) setupTemplates() {
 func (s *Server) setupRoutes() {
 	// Serve static files
 	staticSub, _ := fs.Sub(staticFS, "static")
-	s.router.StaticFS("/static", http.FS(staticSub))
+	static := s.router.Group("/static")
+	static.Use(func(c *gin.Context) {
+		c.Header("Cache-Control", "public, max-age=604800")
+		c.Next()
+	})
+	static.StaticFS("/", http.FS(staticSub))
 
 	// Pages
 	s.router.GET("/", s.handleDashboard)
@@ -259,6 +264,7 @@ func ginLogger() gin.HandlerFunc {
 		start := time.Now()
 		c.Next()
 		latency := time.Since(start)
+		latencyMs := float64(latency) / float64(time.Millisecond)
 		path := c.Request.URL.Path
 
 		// /api/events is a long-lived SSE stream; duration mostly reflects
@@ -268,6 +274,7 @@ func ginLogger() gin.HandlerFunc {
 				Int("status", c.Writer.Status()).
 				Str("method", c.Request.Method).
 				Str("path", path).
+				Float64("stream_duration_ms", latencyMs).
 				Dur("stream_duration", latency).
 				Msg("sse stream closed")
 			return
@@ -282,6 +289,7 @@ func ginLogger() gin.HandlerFunc {
 			Int("status", c.Writer.Status()).
 			Str("method", c.Request.Method).
 			Str("path", path).
+			Float64("latency_ms", latencyMs).
 			Dur("latency", latency).
 			Msg("request")
 	}

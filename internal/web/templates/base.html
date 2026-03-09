@@ -27,7 +27,10 @@
     <div id="pipeline-activity"></div>
     <script>
     (function() {
-        var es = new EventSource('/api/events');
+        var es = null;
+        var reconnectTimer = null;
+        var reconnectDelay = 1000;
+        var maxReconnectDelay = 15000;
 
         var badgeClass = {
             'downloading': 'badge-warning',
@@ -60,7 +63,7 @@
             return Math.floor(secs/3600) + 'h ' + Math.floor((secs%3600)/60) + 'm';
         }
 
-        es.addEventListener('pipeline', function(e) {
+        function onPipelineEvent(e) {
             var d = JSON.parse(e.data);
 
             if (d.type === 'paused' || d.type === 'resumed') {
@@ -192,11 +195,67 @@
                     }
                 }
             }
+        }
+
+        function clearReconnectTimer() {
+            if (reconnectTimer !== null) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+        }
+
+        function closeEventSource() {
+            if (es) {
+                es.close();
+                es = null;
+            }
+        }
+
+        function scheduleReconnect() {
+            clearReconnectTimer();
+            reconnectTimer = setTimeout(function() {
+                reconnectTimer = null;
+                connectEventSource();
+            }, reconnectDelay);
+            reconnectDelay = Math.min(maxReconnectDelay, reconnectDelay * 2);
+        }
+
+        function connectEventSource() {
+            if (document.visibilityState === 'hidden') {
+                return;
+            }
+
+            closeEventSource();
+            es = new EventSource('/api/events');
+
+            es.onopen = function() {
+                reconnectDelay = 1000;
+                clearReconnectTimer();
+            };
+
+            es.addEventListener('pipeline', onPipelineEvent);
+
+            es.onerror = function() {
+                closeEventSource();
+                scheduleReconnect();
+            };
+        }
+
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'hidden') {
+                closeEventSource();
+                clearReconnectTimer();
+                return;
+            }
+            connectEventSource();
         });
 
-        es.onerror = function() {
-            setTimeout(function() { es = new EventSource('/api/events'); }, 5000);
-        };
+        window.addEventListener('beforeunload', function() {
+            closeEventSource();
+            clearReconnectTimer();
+        });
+
+        connectEventSource();
     })();
     </script>
 </body>
