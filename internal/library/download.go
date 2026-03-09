@@ -710,14 +710,26 @@ func (dm *DownloadManager) QueueBook(ctx context.Context, bookID int64, asin str
 	return true, nil
 }
 
-// QueueNewBooks queues all books with "new" status for download.
+// QueueNewBooks queues all books with "new" status for download,
+// limited to maxQueue entries. If maxQueue <= 0, queues all.
 func (dm *DownloadManager) QueueNewBooks(ctx context.Context) (int, error) {
+	return dm.QueueNewBooksLimit(ctx, 0) // 0 means unlimited (for backward compat)
+}
+
+// QueueNewBooksLimit queues books with "new" status for download, respecting a limit.
+// If limit <= 0, queues all new books.
+func (dm *DownloadManager) QueueNewBooksLimit(ctx context.Context, limit int) (int, error) {
 	dm.reconcileLibraryFiles(ctx)
 
 	status := database.BookStatusNew
 	books, _, err := dm.db.ListBooks(ctx, database.BookFilter{Status: &status, Limit: 1000})
 	if err != nil {
 		return 0, err
+	}
+
+	// Apply limit if specified
+	if limit > 0 && len(books) > limit {
+		books = books[:limit]
 	}
 
 	queued := 0
@@ -733,6 +745,31 @@ func (dm *DownloadManager) QueueNewBooks(ctx context.Context) (int, error) {
 		}
 	}
 	return queued, nil
+}
+
+// RefillQueue checks if more books should be queued and queues them up to the limit.
+// This should be called periodically or after downloads complete.
+func (dm *DownloadManager) RefillQueue(ctx context.Context, queueLimit int) error {
+	// Count pending/active downloads
+	var activeCount int
+	for _, status := range []database.DownloadStatus{
+		database.DownloadStatusPending,
+		database.DownloadStatusActive,
+	} {
+		downloads, err := dm.db.ListDownloads(ctx, &status)
+		if err != nil {
+			return fmt.Errorf("list downloads: %w", err)
+		}
+		activeCount += len(downloads)
+	}
+
+	// If we're below the limit, queue more books
+	if activeCount < queueLimit {
+		spacesToFill := queueLimit - activeCount
+		dm.QueueNewBooksLimit(ctx, spacesToFill)
+	}
+
+	return nil
 }
 
 // fileDownloadWriter implements audible.DownloadWriter, writing to a temp file.

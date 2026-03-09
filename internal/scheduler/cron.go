@@ -72,12 +72,15 @@ func (s *Scheduler) runSync() {
 	schedLog.Info().Int("added", added).Msg("scheduled sync complete")
 
 	if added > 0 {
-		queued, err := s.dlMgr.QueueNewBooks(ctx)
+		// Queue new books in batches (2x download workers) to avoid overwhelming the system
+		// The remaining books will be queued as downloads complete
+		queueLimit := 12 // Assuming ~6 download workers, queue 12 at a time
+		queued, err := s.dlMgr.QueueNewBooksLimit(ctx, queueLimit)
 		if err != nil {
 			schedLog.Error().Err(err).Msg("failed to queue new books after sync")
 			return
 		}
-		schedLog.Info().Int("queued", queued).Msg("queued new books after sync")
+		schedLog.Info().Int("queued", queued).Int("limit", queueLimit).Msg("queued new books after sync")
 	}
 }
 
