@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS devices;
+DROP TABLE IF EXISTS settings;
+DROP TABLE IF EXISTS sync_history;
+DROP TABLE IF EXISTS download_queue;
+DROP TABLE IF EXISTS books;

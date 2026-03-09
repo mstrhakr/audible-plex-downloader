@@ -38,7 +38,7 @@ func (p *PostgresDB) Close() error {
 }
 
 func (p *PostgresDB) Migrate() error {
-	sourceDriver, err := iofs.New(migrations, "migrations")
+	sourceDriver, err := iofs.New(migrationsPostgres, "migrations_postgres")
 	if err != nil {
 		return fmt.Errorf("create migration source: %w", err)
 	}
