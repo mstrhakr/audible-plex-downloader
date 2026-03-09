@@ -195,7 +195,107 @@ func (f *FFmpeg) validateDecryption(inputPath, outputPath, activationBytes strin
 		return fmt.Errorf("output file too short (%.1fs, %d bytes), decryption likely failed", outDuration, outSize)
 	}
 
-	decryptLog.Info().Float64("duration_sec", outDuration).Int64("size_bytes", outSize).Str("output", outputPath).Msg("decryption validated successfully")
+	// Validate the audio stream is structurally sane (not a container with unusable audio payload).
+	audioStats, err := f.probeAudioStreamStats(outputPath)
+	if err != nil {
+		decryptLog.Error().Err(err).Str("output", outputPath).Msg("failed to probe audio stream")
+		return fmt.Errorf("audio stream validation failed: %w", err)
+	}
+	if audioStats.Channels <= 0 || audioStats.SampleRate <= 0 {
+		decryptLog.Error().
+			Int("channels", audioStats.Channels).
+			Int("sample_rate", audioStats.SampleRate).
+			Str("codec", audioStats.Codec).
+			Str("output", outputPath).
+			Msg("invalid audio stream properties")
+		return fmt.Errorf("invalid output audio stream (codec=%s channels=%d sample_rate=%d)", audioStats.Codec, audioStats.Channels, audioStats.SampleRate)
+	}
+
+	// Decode a short segment and fail on first decode error. This catches bitstream corruption
+	// that can still pass size/duration checks but produces silence or playback failures.
+	if err := f.decodeSmokeTest(outputPath, 30); err != nil {
+		decryptLog.Error().Err(err).Str("output", outputPath).Msg("decode smoke test failed")
+		return fmt.Errorf("decoded output failed integrity check: %w", err)
+	}
+
+	decryptLog.Info().
+		Float64("duration_sec", outDuration).
+		Int64("size_bytes", outSize).
+		Str("codec", audioStats.Codec).
+		Int("channels", audioStats.Channels).
+		Int("sample_rate", audioStats.SampleRate).
+		Str("output", outputPath).
+		Msg("decryption validated successfully")
+	return nil
+}
+
+type audioStreamStats struct {
+	Codec      string
+	Channels   int
+	SampleRate int
+}
+
+func (f *FFmpeg) probeAudioStreamStats(inputPath string) (audioStreamStats, error) {
+	cmd := exec.Command(f.probePath,
+		"-v", "quiet",
+		"-select_streams", "a:0",
+		"-show_entries", "stream=codec_name,channels,sample_rate",
+		"-of", "json",
+		inputPath,
+	)
+
+	output, err := cmd.Output()
+	if err != nil {
+		return audioStreamStats{}, fmt.Errorf("ffprobe audio stream failed: %w", err)
+	}
+
+	var parsed struct {
+		Streams []struct {
+			CodecName  string `json:"codec_name"`
+			Channels   int    `json:"channels"`
+			SampleRate string `json:"sample_rate"`
+		} `json:"streams"`
+	}
+
+	if err := json.Unmarshal(output, &parsed); err != nil {
+		return audioStreamStats{}, fmt.Errorf("parse audio stream probe: %w", err)
+	}
+	if len(parsed.Streams) == 0 {
+		return audioStreamStats{}, fmt.Errorf("no audio streams found")
+	}
+
+	stream := parsed.Streams[0]
+	rate := 0
+	if stream.SampleRate != "" {
+		_, _ = fmt.Sscanf(stream.SampleRate, "%d", &rate)
+	}
+
+	return audioStreamStats{
+		Codec:      stream.CodecName,
+		Channels:   stream.Channels,
+		SampleRate: rate,
+	}, nil
+}
+
+func (f *FFmpeg) decodeSmokeTest(inputPath string, seconds int) error {
+	if seconds <= 0 {
+		seconds = 15
+	}
+
+	cmd := exec.Command(f.binPath,
+		"-v", "error",
+		"-xerror",
+		"-i", inputPath,
+		"-map", "0:a:0",
+		"-t", fmt.Sprintf("%d", seconds),
+		"-f", "null",
+		"-",
+	)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ffmpeg decode test failed: %w, output: %s", err, strings.TrimSpace(string(output)))
+	}
 	return nil
 }
 
