@@ -71,11 +71,11 @@ func buildMetadataArgs(meta Metadata) []string {
 	add("genre", meta.Genre)
 	add("date", meta.Year)
 	add("comment", meta.Comment)
-	add("composer", meta.Narrator)      // narrator/reader
-	add("copyright", meta.Copyright)    // copyright holder/year
-	add("publisher", meta.Publisher)    // publisher name
-	add("language", meta.Language)      // ISO 639-1 language code
-	add("description", meta.Writer)     // writer/narrator credit
+	add("composer", meta.Narrator)   // narrator/reader
+	add("copyright", meta.Copyright) // copyright holder/year
+	add("publisher", meta.Publisher) // publisher name
+	add("language", meta.Language)   // ISO 639-1 language code
+	add("description", meta.Writer)  // writer/narrator credit
 	add("track", meta.Track)
 	add("disc", meta.Disc)
 

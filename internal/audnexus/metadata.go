@@ -151,7 +151,7 @@ func (e *EnrichedBook) ChapterMarks() []audio.ChapterMark {
 func (e *EnrichedBook) Writer() string {
 	// Build a combined cast field from narrators and authors if we have Audnexus data
 	var parts []string
-	
+
 	if e.AudnexusBook != nil {
 		// Add narrators/readers
 		if len(e.AudnexusBook.Narrators) > 0 {
@@ -161,7 +161,7 @@ func (e *EnrichedBook) Writer() string {
 			}
 			parts = append(parts, "Read by "+strings.Join(names, ", "))
 		}
-		
+
 		// Add authors (writers)
 		if len(e.AudnexusBook.Authors) > 0 {
 			names := make([]string, len(e.AudnexusBook.Authors))
@@ -171,7 +171,7 @@ func (e *EnrichedBook) Writer() string {
 			parts = append(parts, "Written by "+strings.Join(names, ", "))
 		}
 	}
-	
+
 	return strings.Join(parts, " | ")
 }
 
