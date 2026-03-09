@@ -1,39 +1,235 @@
 {{define "content"}}
 <h1>Settings</h1>
 
-<form hx-post="/api/settings" hx-target="#save-status" hx-swap="innerHTML" class="settings-form">
-    <div class="form-group">
-        <label for="sync_schedule">Sync Schedule (cron)</label>
-        <input type="text" id="sync_schedule" name="sync_schedule" value="{{.SyncSchedule}}" placeholder="0 */6 * * *">
-        <small>Standard cron expression. Leave empty to disable.</small>
+<div class="settings-container">
+    <!-- System Information -->
+    <div class="settings-section">
+        <h2>System Information</h2>
+        <div class="info-grid">
+            <div class="info-item">
+                <label>Audiobooks Path</label>
+                <div class="info-value">{{.AudiobooksPath}}</div>
+            </div>
+            <div class="info-item">
+                <label>Downloads Path</label>
+                <div class="info-value">{{.DownloadsPath}}</div>
+            </div>
+            <div class="info-item">
+                <label>Config Path</label>
+                <div class="info-value">{{.ConfigPath}}</div>
+            </div>
+        </div>
     </div>
 
-    <div class="form-group">
-        <label for="output_format">Output Format</label>
-        <select id="output_format" name="output_format">
-            <option value="m4b" {{if eq .OutputFormat "m4b"}}selected{{end}}>M4B (Single File)</option>
-            <option value="mp3" {{if eq .OutputFormat "mp3"}}selected{{end}}>MP3 (Chapter Split)</option>
-        </select>
+    <!-- Configuration Settings -->
+    <div class="settings-section">
+        <h2>Configuration</h2>
+        <form hx-post="/api/settings" hx-target="#save-status" hx-swap="innerHTML" class="settings-form">
+            <div class="form-group">
+                <label for="sync_schedule">Sync Schedule (cron)</label>
+                <input type="text" id="sync_schedule" name="sync_schedule" value="{{.SyncSchedule}}" placeholder="0 */6 * * *">
+                <small>Standard cron expression. Leave empty to disable. Example: <code>0 */6 * * *</code> = every 6 hours</small>
+            </div>
+
+            <div class="form-group">
+                <label for="output_format">Output Format</label>
+                <select id="output_format" name="output_format">
+                    <option value="m4b" {{if eq .OutputFormat "m4b"}}selected{{end}}>M4B (Single File)</option>
+                    <option value="mp3" {{if eq .OutputFormat "mp3"}}selected{{end}}>MP3 (Chapter Split)</option>
+                </select>
+                <small>Choose how to organize your audiobook files</small>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+            <span id="save-status"></span>
+        </form>
     </div>
 
-    <button type="submit" class="btn btn-primary">Save Settings</button>
-    <span id="save-status"></span>
-</form>
-
-{{if .Devices}}
-<h2>Registered Devices</h2>
-<table class="data-table">
-    <thead><tr><th>Name</th><th>Marketplace</th><th>Active</th><th>Created</th></tr></thead>
-    <tbody>
-    {{range .Devices}}
-    <tr>
-        <td>{{.Name}}</td>
-        <td>{{.Marketplace}}</td>
-        <td>{{if .IsActive}}✓{{else}}—{{end}}</td>
-        <td>{{formatDate .CreatedAt}}</td>
-    </tr>
+    <!-- Registered Devices -->
+    {{if .Devices}}
+    <div class="settings-section">
+        <h2>Registered Devices</h2>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Marketplace</th>
+                    <th>Active</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Devices}}
+                <tr>
+                    <td>{{.Name}}</td>
+                    <td>{{.Marketplace}}</td>
+                    <td>{{if .IsActive}}<span class="badge badge-success">✓ Active</span>{{else}}<span class="badge badge-inactive">Inactive</span>{{end}}</td>
+                    <td>{{formatDate .CreatedAt}}</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
     {{end}}
-    </tbody>
-</table>
-{{end}}
+</div>
+
+<style>
+    .settings-container {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+    }
+
+    .settings-section {
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 1.5rem;
+    }
+
+    .settings-section h2 {
+        margin-top: 0;
+        margin-bottom: 1.5rem;
+        color: #00d9ff;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1rem;
+    }
+
+    .info-item {
+        background: rgba(0,0,0,0.2);
+        padding: 1rem;
+        border-radius: 4px;
+        border-left: 3px solid #00d9ff;
+    }
+
+    .info-item label {
+        display: block;
+        font-size: 0.85rem;
+        color: #aaa;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-value {
+        font-family: monospace;
+        font-size: 0.9rem;
+        color: #fff;
+        word-break: break-all;
+    }
+
+    .settings-form {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        max-width: 500px;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .form-group label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        color: #ddd;
+    }
+
+    .form-group input,
+    .form-group select {
+        padding: 0.75rem;
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 4px;
+        background: rgba(255,255,255,0.05);
+        color: #fff;
+        font-family: inherit;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+        outline: none;
+        border-color: #00d9ff;
+        box-shadow: 0 0 0 2px rgba(0,217,255,0.1);
+    }
+
+    .form-group small {
+        margin-top: 0.25rem;
+        color: #888;
+        font-size: 0.85rem;
+    }
+
+    .form-group code {
+        background: rgba(0,0,0,0.3);
+        padding: 0.2rem 0.4rem;
+        border-radius: 3px;
+        font-family: monospace;
+        color: #00d9ff;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 4px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: #00d9ff;
+        color: #000;
+        font-weight: 600;
+    }
+
+    .btn-primary:hover {
+        background: #00b8cc;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .badge-success {
+        background: rgba(76, 175, 80, 0.2);
+        color: #4cb549;
+    }
+
+    .badge-inactive {
+        background: rgba(158, 158, 158, 0.2);
+        color: #999;
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .data-table th {
+        background: rgba(0,217,255,0.05);
+        padding: 0.75rem;
+        text-align: left;
+        font-weight: 600;
+        color: #00d9ff;
+        border-bottom: 2px solid rgba(0,217,255,0.2);
+    }
+
+    .data-table td {
+        padding: 0.75rem;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .data-table tbody tr:hover {
+        background: rgba(0,217,255,0.05);
+    }
+</style>
+
 {{end}}

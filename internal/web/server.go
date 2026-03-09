@@ -33,15 +33,18 @@ var staticFS embed.FS
 
 // Server is the web UI HTTP server.
 type Server struct {
-	router    *gin.Engine
-	db        database.Database
-	sync      *library.SyncService
-	downloads *library.DownloadManager
-	audnexus  *audnexus.Client
-	organizer *organizer.PlexOrganizer
-	audible   *audible.Client
-	credPath  string
-	port      int
+	router         *gin.Engine
+	db             database.Database
+	sync           *library.SyncService
+	downloads      *library.DownloadManager
+	audnexus       *audnexus.Client
+	organizer      *organizer.PlexOrganizer
+	audible        *audible.Client
+	credPath       string
+	port           int
+	audiobooksPath string
+	downloadsPath  string
+	configPath     string
 }
 
 // NewServer creates a new web server with all handlers registered.
@@ -54,21 +57,27 @@ func NewServer(
 	audibleClient *audible.Client,
 	credPath string,
 	port int,
+	audiobooksPath string,
+	downloadsPath string,
+	configPath string,
 ) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(ginLogger(), gin.Recovery())
 
 	s := &Server{
-		router:    router,
-		db:        db,
-		sync:      syncSvc,
-		downloads: dlMgr,
-		audnexus:  anClient,
-		organizer: org,
-		audible:   audibleClient,
-		credPath:  credPath,
-		port:      port,
+		router:         router,
+		db:             db,
+		sync:           syncSvc,
+		downloads:      dlMgr,
+		audnexus:       anClient,
+		organizer:      org,
+		audible:        audibleClient,
+		credPath:       credPath,
+		port:           port,
+		audiobooksPath: audiobooksPath,
+		downloadsPath:  downloadsPath,
+		configPath:     configPath,
 	}
 
 	s.setupTemplates()
@@ -412,10 +421,13 @@ func (s *Server) handleSettings(c *gin.Context) {
 	devices, _ := s.db.ListDevices(ctx)
 
 	c.HTML(http.StatusOK, "settings.html", gin.H{
-		"SyncSchedule": syncSchedule,
-		"OutputFormat": outputFormat,
-		"Devices":      devices,
-		"Page":         "settings",
+		"SyncSchedule":  syncSchedule,
+		"OutputFormat":  outputFormat,
+		"Devices":       devices,
+		"Page":          "settings",
+		"AudiobooksPath": s.audiobooksPath,
+		"DownloadsPath":  s.downloadsPath,
+		"ConfigPath":     s.configPath,
 	})
 }
 
