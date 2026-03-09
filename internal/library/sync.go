@@ -114,7 +114,7 @@ func (s *SyncService) Sync(ctx context.Context) (int, error) {
 	if updated, err := reconcileExistingAudiobookFiles(ctx, s.db, s.libraryDir); err != nil {
 		syncLog.Warn().Err(err).Msg("failed to reconcile existing audiobook files after sync")
 	} else if updated > 0 {
-		syncLog.Info().Int("books_marked_complete", updated).Msg("reconciled existing audiobook files after sync")
+		syncLog.Info().Int("books_reconciled", updated).Msg("reconciled audiobook files against disk after sync")
 	}
 
 	finished := time.Now()

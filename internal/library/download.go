@@ -332,7 +332,7 @@ func (dm *DownloadManager) reconcileLibraryFiles(ctx context.Context) {
 		return
 	}
 	if updated > 0 {
-		dlLog.Info().Int("books_marked_complete", updated).Msg("reconcile: existing library files found")
+		dlLog.Info().Int("books_reconciled", updated).Msg("reconcile: reconciled library files against disk")
 	}
 }
 

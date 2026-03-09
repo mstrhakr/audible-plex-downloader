@@ -12,8 +12,10 @@ import (
 
 var unsafePathChars = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]`)
 
-// reconcileExistingAudiobookFiles scans the expected library layout and marks books complete
-// when a final audiobook file already exists on disk.
+// reconcileExistingAudiobookFiles scans the expected library layout and reconciles
+// each book's file state against disk. It marks books complete when a final
+// audiobook file exists and marks previously complete books as new when the file
+// is missing so they can be re-downloaded.
 func reconcileExistingAudiobookFiles(ctx context.Context, db database.Database, libraryRoot string) (int, error) {
 	if strings.TrimSpace(libraryRoot) == "" {
 		return 0, nil
@@ -76,6 +78,16 @@ func reconcileBookFromLibrary(ctx context.Context, db database.Database, book *d
 		return true, nil
 	}
 
+	if book.Status == database.BookStatusComplete {
+		book.FilePath = ""
+		book.FileSize = 0
+		book.Status = database.BookStatusNew
+		if err := db.UpsertBook(ctx, book); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
 	return false, nil
 }
 
@@ -86,10 +98,11 @@ func candidateLibraryPaths(book *database.Book, libraryRoot string) []string {
 
 	authors := authorCandidates(book.Author)
 	titles := titleCandidates(book)
+	filenameBases := filenameBaseCandidates(book)
 	exts := []string{"m4b", "mp3"}
 
 	seen := make(map[string]struct{})
-	paths := make([]string, 0, len(authors)*len(titles)*len(exts)+1)
+	paths := make([]string, 0, len(authors)*len(titles)*len(filenameBases)*len(exts)+1)
 
 	if strings.TrimSpace(book.FilePath) != "" {
 		seen[book.FilePath] = struct{}{}
@@ -101,13 +114,16 @@ func candidateLibraryPaths(book *database.Book, libraryRoot string) []string {
 		for _, title := range titles {
 			titleDir := sanitizeLibraryPath(title)
 			base := filepath.Join(libraryRoot, authorDir, titleDir)
-			for _, ext := range exts {
-				p := filepath.Join(base, titleDir+"."+ext)
-				if _, ok := seen[p]; ok {
-					continue
+			for _, filenameBase := range filenameBases {
+				fileBase := sanitizeLibraryPath(filenameBase)
+				for _, ext := range exts {
+					p := filepath.Join(base, fileBase+"."+ext)
+					if _, ok := seen[p]; ok {
+						continue
+					}
+					seen[p] = struct{}{}
+					paths = append(paths, p)
 				}
-				seen[p] = struct{}{}
-				paths = append(paths, p)
 			}
 		}
 	}
@@ -146,6 +162,46 @@ func titleCandidates(book *database.Book) []string {
 		return []string{title}
 	}
 	return []string{withSeries, title}
+}
+
+func filenameBaseCandidates(book *database.Book) []string {
+	if book == nil {
+		return []string{"Unknown Title"}
+	}
+
+	titles := titleCandidates(book)
+	authors := authorCandidates(book.Author)
+
+	seen := make(map[string]struct{})
+	bases := make([]string, 0, len(titles)*(len(authors)+1))
+
+	for _, title := range titles {
+		title = strings.TrimSpace(title)
+		if title == "" {
+			continue
+		}
+		if _, ok := seen[title]; !ok {
+			seen[title] = struct{}{}
+			bases = append(bases, title)
+		}
+		for _, author := range authors {
+			author = strings.TrimSpace(author)
+			if author == "" {
+				continue
+			}
+			candidate := title + " - " + author
+			if _, ok := seen[candidate]; ok {
+				continue
+			}
+			seen[candidate] = struct{}{}
+			bases = append(bases, candidate)
+		}
+	}
+
+	if len(bases) == 0 {
+		return []string{"Unknown Title"}
+	}
+	return bases
 }
 
 func sanitizeLibraryPath(name string) string {
