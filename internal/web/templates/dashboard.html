@@ -1,16 +1,6 @@
 {{define "content"}}
 <h1>Dashboard</h1>
 
-<div id="dashboard-summary" hx-get="/api/dashboard/summary" hx-trigger="load, every 5s" hx-swap="innerHTML">
-    {{template "dashboard_summary.html" .}}
-</div>
-
-<div id="pipeline-cards"></div>
-
-<div id="dashboard-downloads" hx-get="/api/dashboard/downloads" hx-trigger="load, every 5s" hx-swap="innerHTML">
-    {{template "dashboard_downloads.html" .}}
-</div>
-
 <div class="actions-bar">
     <button hx-post="/api/sync" hx-target="#sync-status" hx-swap="innerHTML" class="btn btn-primary">
         Sync Library
@@ -22,5 +12,15 @@
         Retry All Failed
     </button>
     <span id="sync-status" hx-get="/api/sync/status" hx-trigger="load, every 2s" hx-swap="innerHTML"></span>
+</div>
+
+<div id="dashboard-summary" hx-get="/api/dashboard/summary" hx-trigger="load, every 5s" hx-swap="innerHTML">
+    {{template "dashboard_summary.html" .}}
+</div>
+
+<div id="pipeline-cards"></div>
+
+<div id="dashboard-downloads" hx-get="/api/dashboard/downloads" hx-trigger="load, every 5s" hx-swap="innerHTML">
+    {{template "dashboard_downloads.html" .}}
 </div>
 {{end}}
