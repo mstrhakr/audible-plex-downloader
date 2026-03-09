@@ -81,9 +81,11 @@ type reconcileMockDB struct {
 	upserted *database.Book
 }
 
-func (m *reconcileMockDB) Close() error { return nil }
+func (m *reconcileMockDB) Close() error   { return nil }
 func (m *reconcileMockDB) Migrate() error { return nil }
-func (m *reconcileMockDB) GetBook(ctx context.Context, id int64) (*database.Book, error) { return nil, nil }
+func (m *reconcileMockDB) GetBook(ctx context.Context, id int64) (*database.Book, error) {
+	return nil, nil
+}
 func (m *reconcileMockDB) GetBookByASIN(ctx context.Context, asin string) (*database.Book, error) {
 	return nil, nil
 }
@@ -105,19 +107,31 @@ func (m *reconcileMockDB) EnqueueDownload(ctx context.Context, item *database.Do
 func (m *reconcileMockDB) GetNextPendingDownload(ctx context.Context) (*database.DownloadQueue, error) {
 	return nil, nil
 }
-func (m *reconcileMockDB) UpdateDownload(ctx context.Context, item *database.DownloadQueue) error { return nil }
+func (m *reconcileMockDB) UpdateDownload(ctx context.Context, item *database.DownloadQueue) error {
+	return nil
+}
 func (m *reconcileMockDB) ListDownloads(ctx context.Context, status *database.DownloadStatus) ([]database.DownloadQueue, error) {
 	return nil, nil
 }
-func (m *reconcileMockDB) CancelDownload(ctx context.Context, id int64) error { return nil }
-func (m *reconcileMockDB) RetryDownload(ctx context.Context, id int64) error { return nil }
+func (m *reconcileMockDB) CancelDownload(ctx context.Context, id int64) error   { return nil }
+func (m *reconcileMockDB) RetryDownload(ctx context.Context, id int64) error    { return nil }
 func (m *reconcileMockDB) RetryAllDownloads(ctx context.Context) (int64, error) { return 0, nil }
-func (m *reconcileMockDB) CreateSync(ctx context.Context, sync *database.SyncHistory) error { return nil }
-func (m *reconcileMockDB) UpdateSync(ctx context.Context, sync *database.SyncHistory) error { return nil }
-func (m *reconcileMockDB) GetLastSync(ctx context.Context) (*database.SyncHistory, error) { return nil, nil }
+func (m *reconcileMockDB) CreateSync(ctx context.Context, sync *database.SyncHistory) error {
+	return nil
+}
+func (m *reconcileMockDB) UpdateSync(ctx context.Context, sync *database.SyncHistory) error {
+	return nil
+}
+func (m *reconcileMockDB) GetLastSync(ctx context.Context) (*database.SyncHistory, error) {
+	return nil, nil
+}
 func (m *reconcileMockDB) GetSetting(ctx context.Context, key string) (string, error) { return "", nil }
-func (m *reconcileMockDB) SetSetting(ctx context.Context, key, value string) error { return nil }
-func (m *reconcileMockDB) GetActiveDevice(ctx context.Context) (*database.Device, error) { return nil, nil }
+func (m *reconcileMockDB) SetSetting(ctx context.Context, key, value string) error    { return nil }
+func (m *reconcileMockDB) GetActiveDevice(ctx context.Context) (*database.Device, error) {
+	return nil, nil
+}
 func (m *reconcileMockDB) SaveDevice(ctx context.Context, device *database.Device) error { return nil }
-func (m *reconcileMockDB) ListDevices(ctx context.Context) ([]database.Device, error) { return nil, nil }
+func (m *reconcileMockDB) ListDevices(ctx context.Context) ([]database.Device, error) {
+	return nil, nil
+}
 func (m *reconcileMockDB) DeleteDevice(ctx context.Context, id int64) error { return nil }
