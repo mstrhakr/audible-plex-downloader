@@ -63,8 +63,8 @@ type DownloadManager struct {
 
 // QueueState reports whether downloads are paused and why.
 type QueueState struct {
-	Paused bool      `json:"paused"`
-	Reason string    `json:"reason,omitempty"`
+	Paused   bool      `json:"paused"`
+	Reason   string    `json:"reason,omitempty"`
 	PausedAt time.Time `json:"paused_at,omitempty"`
 }
 
