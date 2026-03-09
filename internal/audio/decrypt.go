@@ -21,15 +21,36 @@ func (f *FFmpeg) DecryptAAXWithMetadata(inputPath, outputPath, activationBytes s
 	decryptLog.Info().
 		Str("input", inputPath).
 		Str("output", outputPath).
-		Msg("decrypting AAX")
+		Msg("starting AAX decryption")
+
+	// Validate activation bytes format
+	if activationBytes == "" {
+		return fmt.Errorf("activation bytes required for AAX decryption")
+	}
+
+	// Log activation bytes validation
+	if !isValidActivationBytes(activationBytes) {
+		decryptLog.Warn().
+			Int("length", len(activationBytes)).
+			Str("sample", activationBytes[:min(20, len(activationBytes))]).
+			Msg("activation bytes format looks unusual (expected hex format, 40 chars for AAX)")
+	} else {
+		decryptLog.Debug().Msg("activation bytes format validated (128-bit hex)")
+	}
 
 	err := f.runWithProgress(f.buildDecryptArgs(inputPath, outputPath, activationBytes, "", "", meta), progressCb)
 	if err != nil {
-		decryptLog.Error().Err(err).Str("input", inputPath).Msg("AAX decryption failed")
+		decryptLog.Error().
+			Err(err).
+			Str("input", inputPath).
+			Str("output", outputPath).
+			Msg("AAX decryption failed")
 		return fmt.Errorf("AAX decryption failed: %w", err)
 	}
 
-	decryptLog.Debug().Str("output", outputPath).Msg("AAX decryption succeeded, validating")
+	decryptLog.Debug().
+		Str("output", outputPath).
+		Msg("AAX decryption succeeded, validating output")
 	return f.validateDecryption(inputPath, outputPath, activationBytes)
 }
 
@@ -44,15 +65,38 @@ func (f *FFmpeg) DecryptAAXCWithMetadata(inputPath, outputPath, key, iv string, 
 	decryptLog.Info().
 		Str("input", inputPath).
 		Str("output", outputPath).
-		Msg("decrypting AAXC")
+		Msg("starting AAXC decryption")
+
+	// Validate key and IV format
+	if key == "" || iv == "" {
+		return fmt.Errorf("audible_key and audible_iv required for AAXC decryption")
+	}
+
+	if !isValidHexString(key) || !isValidHexString(iv) {
+		decryptLog.Warn().
+			Int("key_len", len(key)).
+			Int("iv_len", len(iv)).
+			Msg("key or IV format looks unusual (expected hex format)")
+	} else {
+		decryptLog.Debug().
+			Int("key_len", len(key)).
+			Int("iv_len", len(iv)).
+			Msg("key and IV format validated (hex strings)")
+	}
 
 	err := f.runWithProgress(f.buildDecryptArgs(inputPath, outputPath, "", key, iv, meta), progressCb)
 	if err != nil {
-		decryptLog.Error().Err(err).Str("input", inputPath).Msg("AAXC decryption failed")
+		decryptLog.Error().
+			Err(err).
+			Str("input", inputPath).
+			Str("output", outputPath).
+			Msg("AAXC decryption failed")
 		return fmt.Errorf("AAXC decryption failed: %w", err)
 	}
 
-	decryptLog.Debug().Str("output", outputPath).Msg("AAXC decryption succeeded, validating")
+	decryptLog.Debug().
+		Str("output", outputPath).
+		Msg("AAXC decryption succeeded, validating output")
 	return f.validateDecryption(inputPath, outputPath, "")
 }
 
@@ -223,4 +267,34 @@ func indexOf(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+// isValidHexString checks if a string is valid hex characters.
+func isValidHexString(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
+// isValidActivationBytes checks if activation bytes look valid (hex format, typically 40 chars = 128 bits).
+func isValidActivationBytes(ab string) bool {
+	// Activation bytes should be 40 hex characters (128 bits = 16 bytes * 2 hex chars per byte)
+	if len(ab) < 32 || len(ab) > 50 {
+		return false
+	}
+	return isValidHexString(ab)
+}
+
+// min returns the minimum of two integers.
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

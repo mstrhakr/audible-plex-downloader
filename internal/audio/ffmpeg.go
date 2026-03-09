@@ -49,7 +49,18 @@ func NewFFmpeg(configDir string) (*FFmpeg, error) {
 // run executes an ffmpeg command and returns combined output on error.
 func (f *FFmpeg) run(args ...string) error {
 	cmd := exec.Command(f.binPath, args...)
-	ffmpegLog.Debug().Strs("args", args).Msg("running ffmpeg")
+
+	// Log command with sensitive info redacted
+	safeArgs := make([]string, len(args))
+	for i, arg := range args {
+		if i > 0 && (args[i-1] == "-activation_bytes" || args[i-1] == "-audible_key" || args[i-1] == "-audible_iv") {
+			safeArgs[i] = "[REDACTED]"
+		} else {
+			safeArgs[i] = arg
+		}
+	}
+	fullCmd := append([]string{f.binPath}, safeArgs...)
+	ffmpegLog.Debug().Strs("cmd", fullCmd).Msg("executing ffmpeg")
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -66,7 +77,18 @@ func (f *FFmpeg) runWithProgress(args []string, cb func(ProgressInfo)) error {
 	cmdArgs = append(cmdArgs, "-progress", "pipe:1", "-nostats")
 
 	cmd := exec.Command(f.binPath, cmdArgs...)
-	ffmpegLog.Debug().Strs("args", cmdArgs).Msg("running ffmpeg with progress")
+
+	// Log command with sensitive info redacted
+	safeArgs := make([]string, len(cmdArgs))
+	for i, arg := range cmdArgs {
+		if i > 0 && (cmdArgs[i-1] == "-activation_bytes" || cmdArgs[i-1] == "-audible_key" || cmdArgs[i-1] == "-audible_iv") {
+			safeArgs[i] = "[REDACTED]"
+		} else {
+			safeArgs[i] = arg
+		}
+	}
+	fullCmd := append([]string{f.binPath}, safeArgs...)
+	ffmpegLog.Debug().Strs("cmd", fullCmd).Msg("executing ffmpeg with progress tracking")
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -136,14 +158,18 @@ func (f *FFmpeg) runWithProgress(args []string, cb func(ProgressInfo)) error {
 	<-stderrDone
 	if waitErr != nil {
 		stderrText := strings.TrimSpace(stderrBuf.String())
-		ffmpegLog.Error().Err(waitErr).Str("stderr", stderrText).Msg("ffmpeg command failed")
+		// Parse out useful error info from ffmpeg stderr
+		ffmpegLog.Error().
+			Err(waitErr).
+			Str("stderr", stderrText).
+			Msg("ffmpeg execution failed")
 		if stderrText != "" {
 			return fmt.Errorf("ffmpeg failed: %w\noutput: %s", waitErr, stderrText)
 		}
 		return fmt.Errorf("ffmpeg failed: %w", waitErr)
 	}
 
-	ffmpegLog.Trace().Msg("ffmpeg command with progress succeeded")
+	ffmpegLog.Info().Msg("ffmpeg completed successfully")
 	return nil
 }
 
