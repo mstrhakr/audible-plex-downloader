@@ -14,6 +14,10 @@ type Metadata struct {
 	Title       string
 	Author      string
 	Narrator    string
+	Writer      string // Narrator/writer credit (may be multiple narrators)
+	Publisher   string // Publisher name
+	Copyright   string // Copyright holder/year
+	Language    string // ISO 639-1 language code (e.g., "en", "fr")
 	Album       string // Usually same as title
 	AlbumArtist string // Usually same as author
 	Genre       string
@@ -67,7 +71,11 @@ func buildMetadataArgs(meta Metadata) []string {
 	add("genre", meta.Genre)
 	add("date", meta.Year)
 	add("comment", meta.Comment)
-	add("composer", meta.Narrator) // narrator often mapped to composer
+	add("composer", meta.Narrator)      // narrator/reader
+	add("copyright", meta.Copyright)    // copyright holder/year
+	add("publisher", meta.Publisher)    // publisher name
+	add("language", meta.Language)      // ISO 639-1 language code
+	add("description", meta.Writer)     // writer/narrator credit
 	add("track", meta.Track)
 	add("disc", meta.Disc)
 

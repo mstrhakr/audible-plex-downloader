@@ -3,6 +3,7 @@ package audio
 import (
 	"fmt"
 	"math"
+	"os"
 
 	"github.com/mstrhakr/audible-plex-downloader/internal/logging"
 )
@@ -82,8 +83,19 @@ func (f *FFmpeg) buildDecryptArgs(inputPath, outputPath, activationBytes, key, i
 
 // validateDecryption checks that the output file has approximately the same duration.
 func (f *FFmpeg) validateDecryption(inputPath, outputPath, activationBytes string) error {
-	// For AAX files, probe with activation bytes isn't straightforward,
-	// so we just verify the output is probed successfully.
+	// Check file exists and has minimum size
+	outInfo, err := os.Stat(outputPath)
+	if err != nil {
+		decryptLog.Error().Err(err).Str("output", outputPath).Msg("output file does not exist after decryption")
+		return fmt.Errorf("output file not created: %w", err)
+	}
+	outSize := outInfo.Size()
+	if outSize < 1024*100 { // At least 100KB for a valid audio file
+		decryptLog.Error().Int64("size_bytes", outSize).Str("output", outputPath).Msg("output file too small, likely incomplete decryption")
+		return fmt.Errorf("output file too small (%d bytes), decryption likely failed", outSize)
+	}
+
+	// Probe duration
 	outDuration, err := f.Probe(outputPath)
 	if err != nil {
 		decryptLog.Error().Err(err).Str("output", outputPath).Msg("output validation probe failed")
@@ -91,11 +103,11 @@ func (f *FFmpeg) validateDecryption(inputPath, outputPath, activationBytes strin
 	}
 
 	if outDuration < 60 {
-		decryptLog.Warn().Float64("duration_sec", outDuration).Str("output", outputPath).Msg("output file suspiciously short")
-		return fmt.Errorf("output file too short (%.1fs), decryption likely failed", outDuration)
+		decryptLog.Warn().Float64("duration_sec", outDuration).Int64("size_bytes", outSize).Str("output", outputPath).Msg("output file suspiciously short")
+		return fmt.Errorf("output file too short (%.1fs, %d bytes), decryption likely failed", outDuration, outSize)
 	}
 
-	decryptLog.Info().Float64("duration_sec", outDuration).Str("output", outputPath).Msg("decryption validated")
+	decryptLog.Info().Float64("duration_sec", outDuration).Int64("size_bytes", outSize).Str("output", outputPath).Msg("decryption validated successfully")
 	return nil
 }
 

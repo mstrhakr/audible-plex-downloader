@@ -11,6 +11,7 @@ type Book struct {
 	AuthorASIN     string     `json:"author_asin"`
 	Narrator       string     `json:"narrator"`
 	Publisher      string     `json:"publisher"`
+	Language       string     `json:"language"`
 	Description    string     `json:"description"`
 	Duration       int64      `json:"duration"` // seconds
 	Series         string     `json:"series"`

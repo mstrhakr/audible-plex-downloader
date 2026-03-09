@@ -147,6 +147,75 @@ func (e *EnrichedBook) ChapterMarks() []audio.ChapterMark {
 	return marks
 }
 
+// Writer returns the full cast and writer information if available.
+func (e *EnrichedBook) Writer() string {
+	// Build a combined cast field from narrators and authors if we have Audnexus data
+	var parts []string
+	
+	if e.AudnexusBook != nil {
+		// Add narrators/readers
+		if len(e.AudnexusBook.Narrators) > 0 {
+			names := make([]string, len(e.AudnexusBook.Narrators))
+			for i, n := range e.AudnexusBook.Narrators {
+				names[i] = n.Name
+			}
+			parts = append(parts, "Read by "+strings.Join(names, ", "))
+		}
+		
+		// Add authors (writers)
+		if len(e.AudnexusBook.Authors) > 0 {
+			names := make([]string, len(e.AudnexusBook.Authors))
+			for i, a := range e.AudnexusBook.Authors {
+				names[i] = a.Name
+			}
+			parts = append(parts, "Written by "+strings.Join(names, ", "))
+		}
+	}
+	
+	return strings.Join(parts, " | ")
+}
+
+// Publisher returns the publisher name.
+func (e *EnrichedBook) Publisher() string {
+	if e.AudnexusBook != nil && e.AudnexusBook.Publisher != "" {
+		return e.AudnexusBook.Publisher
+	}
+	return e.Book.Publisher
+}
+
+// Copyright returns copyright information.
+func (e *EnrichedBook) Copyright() string {
+	if e.AudnexusBook != nil && e.AudnexusBook.ReleaseDate != "" {
+		// Extract year from release date
+		if len(e.AudnexusBook.ReleaseDate) >= 4 {
+			year := e.AudnexusBook.ReleaseDate[:4]
+			// Format as "© YYYY Publisher"
+			pub := e.Publisher()
+			if pub != "" {
+				return "© " + year + " " + pub
+			}
+			return "© " + year
+		}
+	}
+	if !e.Book.ReleaseDate.IsZero() {
+		year := e.Book.ReleaseDate.Format("2006")
+		pub := e.Publisher()
+		if pub != "" {
+			return "© " + year + " " + pub
+		}
+		return "© " + year
+	}
+	return ""
+}
+
+// Language returns the language code (e.g., "en", "fr").
+func (e *EnrichedBook) Language() string {
+	if e.AudnexusBook != nil && e.AudnexusBook.Language != "" {
+		return e.AudnexusBook.Language
+	}
+	return e.Book.Language
+}
+
 // ToAudioMetadata builds an audio.Metadata struct from the merged data.
 func (e *EnrichedBook) ToAudioMetadata() audio.Metadata {
 	album := e.Title()
@@ -167,6 +236,10 @@ func (e *EnrichedBook) ToAudioMetadata() audio.Metadata {
 		Title:       e.Title(),
 		Author:      e.Author(),
 		Narrator:    e.Narrator(),
+		Writer:      e.Writer(),
+		Publisher:   e.Publisher(),
+		Copyright:   e.Copyright(),
+		Language:    e.Language(),
 		Album:       album,
 		AlbumArtist: e.Author(),
 		Genre:       e.Genre(),
