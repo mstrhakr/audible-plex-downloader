@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# GitHub
+.github
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Documentation
+*.md
+!README.md
+
+# Test files
+*_test.go
+testdata
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+audible-plex-downloader
+
+# Config and data (use volumes instead)
+config.yaml
+credentials.json
+*.db
+*.sqlite
+*.sqlite3
+*.log
+downloads
+audiobooks
+docker-data
+
+# CI/CD
+.gitlab-ci.yml
+.travis.yml

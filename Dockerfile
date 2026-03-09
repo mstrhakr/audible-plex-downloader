@@ -5,11 +5,15 @@ RUN apk add --no-cache gcc musl-dev
 
 WORKDIR /build
 
-COPY go.mod go.sum ./
+# Copy both repos (structure created by CI or build script)
+# go-audible should be at ../go-audible or ./go-audible in build context
+COPY go-audible/ ./go-audible/
+COPY audible-plex-downloader/ ./
+
+# Download Go dependencies
 RUN go mod download
 
-COPY . .
-
+# Build the application
 RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /audible-plex-downloader ./cmd/server
 
 # Runtime stage

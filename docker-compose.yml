@@ -1,6 +1,11 @@
 services:
   audible-plex:
-    build: .
+    # Use published image from GitHub Container Registry
+    image: ghcr.io/mstrhakr/audible-plex-downloader:latest
+    
+    # Or build locally (uncomment and comment image line above)
+    # build: .
+    
     container_name: audible-plex-downloader
     ports:
       - "8080:8080"

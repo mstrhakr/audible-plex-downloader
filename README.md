@@ -4,16 +4,41 @@ A pure Go Docker application that authenticates with Audible, downloads audioboo
 
 ## Quick Start
 
+### Using Pre-built Docker Image
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/mstrhakr/audible-plex-downloader:latest
+
+# Create directories
+mkdir -p config audiobooks downloads
+
+# Run with Docker
+docker run -d \
+  --name audible-plex \
+  -p 8080:8080 \
+  -v $(pwd)/config:/config \
+  -v $(pwd)/audiobooks:/audiobooks \
+  -v $(pwd)/downloads:/downloads \
+  ghcr.io/mstrhakr/audible-plex-downloader:latest
+
+# Or use Docker Compose
+docker compose up -d
+```
+
+### Building from Source
+
 ```bash
 # Clone the repo
-git clone https://github.com/nick/audible-plex-downloader.git
+git clone https://github.com/mstrhakr/audible-plex-downloader.git
 cd audible-plex-downloader
 
 # Copy and edit config
 cp config.example.yaml config/config.yaml
 
-# Start with Docker Compose
-docker compose up -d
+# Build and run
+go build ./cmd/server
+./audible-plex-downloader
 ```
 
 Then visit `http://localhost:8080` to authenticate and manage your library.
@@ -38,10 +63,12 @@ Configuration can be provided via `config.yaml` or environment variables:
 
 ## Docker Compose
 
+The docker-compose.yml is configured to use the pre-built image from GitHub Container Registry:
+
 ```yaml
 services:
   audible-plex:
-    build: .
+    image: ghcr.io/mstrhakr/audible-plex-downloader:latest
     ports:
       - "8080:8080"
     volumes:
@@ -52,6 +79,48 @@ services:
       - DATABASE_TYPE=sqlite
     restart: unless-stopped
 ```
+
+### Available Docker Tags
+
+When you tag a release like `v0.1.2`, the following images are automatically published:
+
+- **Exact version:** `v0.1.2`, `0.1.2`
+- **Floating minor:** `v0.1`, `0.1` (tracks latest patch in 0.1.x)
+- **Floating major:** `v0`, `0` (tracks latest in 0.x.x)
+- **Latest:** `latest` (latest release from main/master)
+- **Branch:** `master`, `main` (latest commit on that branch)
+- **Commit-specific:** `master-sha-abc123`
+
+Example usage:
+```bash
+# Use latest stable release
+docker pull ghcr.io/mstrhakr/audible-plex-downloader:latest
+
+# Pin to major version (auto-updates to latest 0.x.x)
+docker pull ghcr.io/mstrhakr/audible-plex-downloader:v0
+
+# Pin to minor version (auto-updates to latest 0.1.x)
+docker pull ghcr.io/mstrhakr/audible-plex-downloader:v0.1
+
+# Pin to exact version (never changes)
+docker pull ghcr.io/mstrhakr/audible-plex-downloader:v0.1.2
+```
+
+Images are automatically built and published via GitHub Actions on every push to main/master and on tagged releases.
+
+### Building Docker Image Locally
+
+Because this project depends on a local `go-audible` module, use the provided build scripts:
+
+```bash
+# Linux/macOS
+./build-docker.sh
+
+# Windows PowerShell
+./build-docker.ps1
+```
+
+These scripts will set up the proper build context with both repositories and create an image tagged as `audible-plex-downloader:local`.
 
 ## Output Structure
 
