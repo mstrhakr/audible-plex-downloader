@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -200,14 +201,12 @@ func (dm *DownloadManager) handleDecryptStage(ctx context.Context, item *pipelin
 // handleProcessStage handles final organization/chapter generation for already-tagged audio.
 func (dm *DownloadManager) handleProcessStage(ctx context.Context, item *pipelineItem) {
 	asinLog := dlLog.WithField("asin", item.ASIN)
-	asinLog.Info().Msg("starting process stage")
+	asinLog.Info().Msg("starting move stage")
 
 	_ = dm.db.UpdateBookStatus(ctx, item.BookID, database.BookStatusProcessing)
-	dm.emit(DownloadEvent{ASIN: item.ASIN, BookID: item.BookID, Title: item.Title, Type: "stage", Stage: "processing"})
-	emitProcessingProgress(dm, item, 0.05)
+	dm.emit(DownloadEvent{ASIN: item.ASIN, BookID: item.BookID, Title: item.Title, Type: "stage", Stage: "moving"})
 
-	// Step 1: ensure canonical book/metadata are available.
-	emitProcessingProgress(dm, item, 0.15)
+	// Ensure canonical book/metadata are available before move.
 	book := item.Book
 	if book == nil {
 		var err error
@@ -219,32 +218,75 @@ func (dm *DownloadManager) handleProcessStage(ctx context.Context, item *pipelin
 		}
 	}
 
-	// Step 2: use metadata prepared earlier in the pipeline.
-	emitProcessingProgress(dm, item, 0.35)
+	// Use metadata prepared earlier in the pipeline.
 	enriched := item.Enriched
 	if enriched == nil {
 		enriched = &audnexus.EnrichedBook{Book: book}
 	}
-	emitProcessingProgress(dm, item, 0.55)
 
-	// Step 3: organize already-tagged media into final Plex folder structure.
+	// Move already-tagged media into final Plex folder structure with real progress.
 	decryptedPath := item.DecryptedPath
 	if decryptedPath == "" {
 		decryptedPath = filepath.Join(dm.downloadDir, item.ASIN+".m4b")
 	}
-	emitProcessingProgress(dm, item, 0.7)
-	finalPath, err := dm.organizer.Organize(ctx, book, enriched, decryptedPath)
+
+	totalBytes := int64(0)
+	if st, err := os.Stat(decryptedPath); err == nil {
+		totalBytes = st.Size()
+	}
+
+	moveStart := time.Now()
+	var lastEmit time.Time
+	onMoveProgress := func(moved, total int64) {
+		now := time.Now()
+		if now.Sub(lastEmit) < 300*time.Millisecond && moved < total {
+			return
+		}
+		lastEmit = now
+
+		if total <= 0 {
+			total = totalBytes
+		}
+
+		progress := 0.0
+		if total > 0 {
+			progress = float64(moved) / float64(total)
+			if progress > 1 {
+				progress = 1
+			}
+		}
+
+		speed := 0.0
+		elapsed := now.Sub(moveStart).Seconds()
+		if elapsed > 0 {
+			speed = float64(moved) / elapsed
+		}
+
+		dm.emit(DownloadEvent{
+			ASIN:         item.ASIN,
+			BookID:       item.BookID,
+			Title:        item.Title,
+			Type:         "progress",
+			Stage:        "moving",
+			Progress:     progress,
+			BytesWritten: moved,
+			TotalBytes:   total,
+			Speed:        speed,
+		})
+	}
+
+	onMoveProgress(0, totalBytes)
+	finalPath, err := dm.organizer.OrganizeWithProgress(ctx, book, enriched, decryptedPath, onMoveProgress)
 	if err != nil {
 		asinLog.Error().Err(err).Msg("organization failed")
 		dm.cleanupDownloadFiles(item.ASIN)
 		dm.failItem(ctx, item.DownloadItem, item.Title, fmt.Errorf("organize: %w", err))
 		return
 	}
+	onMoveProgress(totalBytes, totalBytes)
 
 	// Clean up intermediate files
-	emitProcessingProgress(dm, item, 0.92)
 	dm.cleanupDownloadFiles(item.ASIN)
-	emitProcessingProgress(dm, item, 0.98)
 
 	// Mark queue item complete only after the entire pipeline succeeds.
 	now := time.Now()

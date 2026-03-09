@@ -146,7 +146,8 @@ func (p *PostgresDB) UpsertBook(ctx context.Context, book *Book) error {
 		    narrator=EXCLUDED.narrator, publisher=EXCLUDED.publisher, description=EXCLUDED.description,
 		    duration=EXCLUDED.duration, series=EXCLUDED.series, series_position=EXCLUDED.series_position,
 		    cover_url=EXCLUDED.cover_url, purchase_date=EXCLUDED.purchase_date, release_date=EXCLUDED.release_date,
-		    drm_type=EXCLUDED.drm_type, updated_at=EXCLUDED.updated_at
+		    drm_type=EXCLUDED.drm_type, status=EXCLUDED.status, file_path=EXCLUDED.file_path,
+		    file_size=EXCLUDED.file_size, updated_at=EXCLUDED.updated_at
 		 RETURNING id`,
 		book.ASIN, book.Title, book.Author, book.AuthorASIN, book.Narrator, book.Publisher,
 		book.Description, book.Duration, book.Series, book.SeriesPosition, book.CoverURL,

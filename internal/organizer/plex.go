@@ -43,6 +43,12 @@ func NewPlexOrganizer(db database.Database, ffmpeg *audio.FFmpeg, libraryRoot st
 // Structure: {libraryRoot}/{Author}/{Title}/{Title}.m4b
 // Optionally embeds metadata, cover art, and generates a chapters file.
 func (o *PlexOrganizer) Organize(ctx context.Context, book *database.Book, enriched *audnexus.EnrichedBook, inputPath string) (string, error) {
+	return o.OrganizeWithProgress(ctx, book, enriched, inputPath, nil)
+}
+
+// OrganizeWithProgress performs the same work as Organize and reports file move progress.
+// The callback receives bytes moved and total bytes.
+func (o *PlexOrganizer) OrganizeWithProgress(ctx context.Context, book *database.Book, enriched *audnexus.EnrichedBook, inputPath string, onMoveProgress func(moved, total int64)) (string, error) {
 	_ = ctx
 	author := sanitizePath(enriched.Author())
 	title := buildTitle(enriched)
@@ -69,13 +75,20 @@ func (o *PlexOrganizer) Organize(ctx context.Context, book *database.Book, enric
 		Str("dest", finalPath).
 		Msg("organizing audiobook")
 
+	totalBytes := int64(0)
+	if fi, err := os.Stat(inputPath); err == nil {
+		totalBytes = fi.Size()
+	}
+
 	// File is already decrypted and tagged earlier in the pipeline.
 	if err := os.Rename(inputPath, finalPath); err != nil {
 		// Cross-device rename; fall back to copy+delete.
-		if err := copyFile(inputPath, finalPath); err != nil {
+		if err := copyFile(inputPath, finalPath, totalBytes, onMoveProgress); err != nil {
 			return "", fmt.Errorf("move file: %w", err)
 		}
 		_ = os.Remove(inputPath)
+	} else if onMoveProgress != nil {
+		onMoveProgress(totalBytes, totalBytes)
 	}
 
 	// Generate chapters file
@@ -181,8 +194,8 @@ func downloadCover(ctx context.Context, coverURL, bookDir, titleBase string) (st
 	return coverPath, nil
 }
 
-// copyFile copies a file from src to dst.
-func copyFile(src, dst string) error {
+// copyFile copies a file from src to dst and optionally reports progress.
+func copyFile(src, dst string, totalBytes int64, onProgress func(moved, total int64)) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -195,8 +208,29 @@ func copyFile(src, dst string) error {
 	}
 	defer out.Close()
 
-	if _, err := io.Copy(out, in); err != nil {
-		return err
+	buf := make([]byte, 1024*1024)
+	moved := int64(0)
+	for {
+		n, readErr := in.Read(buf)
+		if n > 0 {
+			w, writeErr := out.Write(buf[:n])
+			if writeErr != nil {
+				return writeErr
+			}
+			if w != n {
+				return io.ErrShortWrite
+			}
+			moved += int64(w)
+			if onProgress != nil {
+				onProgress(moved, totalBytes)
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return readErr
+		}
 	}
 	return out.Close()
 }
