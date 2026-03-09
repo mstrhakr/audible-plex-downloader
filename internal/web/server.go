@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
+	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -306,6 +307,8 @@ func (s *Server) getDashboardData(ctx context.Context) gin.H {
 
 	plexLibraryItems := 0
 	plexLibraryItemsAvailable := false
+	plexCoverage := 0
+	plexCoverageAvailable := false
 	if plexConfigured && plexSectionConfigured {
 		plexCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
@@ -316,6 +319,14 @@ func (s *Server) getDashboardData(ctx context.Context) gin.H {
 		} else {
 			plexLibraryItems = items
 			plexLibraryItemsAvailable = true
+			if completeBooks > 0 {
+				coverage := int(math.Round((float64(plexLibraryItems) / float64(completeBooks)) * 100))
+				if coverage < 0 {
+					coverage = 0
+				}
+				plexCoverage = coverage
+				plexCoverageAvailable = true
+			}
 		}
 	}
 
@@ -334,6 +345,8 @@ func (s *Server) getDashboardData(ctx context.Context) gin.H {
 		"PlexSection":     strings.TrimSpace(plexSectionTitle),
 		"PlexItems":       plexLibraryItems,
 		"PlexItemsSet":    plexLibraryItemsAvailable,
+		"PlexCoverage":    plexCoverage,
+		"PlexCoverageSet": plexCoverageAvailable,
 		"Page":            "dashboard",
 	}
 }
