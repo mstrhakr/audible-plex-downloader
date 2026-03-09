@@ -33,11 +33,17 @@
             'downloading': 'badge-warning',
             'decrypting':  'badge-warning',
             'processing':  'badge-warning',
+            'moving':      'badge-warning',
             'complete':    'badge-success',
             'failed':      'badge-error',
             'queued':      'badge-info',
             'new':         'badge-neutral'
         };
+
+        function stageLabel(stage) {
+            if (stage === 'moving') return 'moving file';
+            return stage || '';
+        }
 
         function fmtBytes(b) {
             if (b <= 0) return '0 B';
@@ -83,7 +89,7 @@
             var badge = document.getElementById('status-book-' + d.book_id);
             if (badge) {
                 var stage = d.stage || d.type;
-                badge.textContent = stage;
+                badge.textContent = stageLabel(stage);
                 badge.className = 'badge ' + (badgeClass[stage] || 'badge-neutral');
             }
 
@@ -93,7 +99,7 @@
                 var card = document.getElementById('pipe-' + d.asin);
                 if (d.type === 'started' || d.type === 'progress' || d.type === 'stage') {
                     var stage = d.stage || (d.type === 'started' ? 'downloading' : '');
-                    var isActiveStage = stage === 'downloading' || stage === 'decrypting' || stage === 'processing';
+                    var isActiveStage = stage === 'downloading' || stage === 'decrypting' || stage === 'processing' || stage === 'moving';
 
                     // Keep cards focused on active work only; queued/non-active states should not linger.
                     if (!isActiveStage) {
@@ -115,9 +121,10 @@
                     }
                     var pct = Math.round((d.progress || 0) * 100);
                     var label = d.title || d.asin;
+                    var stageText = stageLabel(stage);
 
                     var details = '';
-                    if (stage === 'downloading' || stage === 'decrypting' || stage === 'processing') {
+                    if (stage === 'downloading' || stage === 'decrypting' || stage === 'processing' || stage === 'moving') {
                         var sizeInfo = '';
                         if (d.total_bytes > 0) {
                             sizeInfo = fmtBytes(d.bytes_written) + ' / ' + fmtBytes(d.total_bytes);
@@ -125,10 +132,12 @@
                         var speedInfo = '';
                         if (stage === 'downloading' && d.speed > 0) {
                             speedInfo = fmtBytes(d.speed) + '/s';
+                        } else if (stage === 'moving' && d.speed > 0) {
+                            speedInfo = fmtBytes(d.speed) + '/s';
                         } else if (stage !== 'downloading' && d.speed > 0) {
                             speedInfo = d.speed.toFixed(2) + 'x';
                         }
-                        var eta = d.speed > 0 && d.total_bytes > 0 && stage === 'downloading' ? fmtETA(d.bytes_written, d.total_bytes, d.speed) : '';
+                        var eta = d.speed > 0 && d.total_bytes > 0 && (stage === 'downloading' || stage === 'moving') ? fmtETA(d.bytes_written, d.total_bytes, d.speed) : '';
                         var parts = [];
                         if (sizeInfo) parts.push(sizeInfo);
                         if (speedInfo) parts.push(speedInfo);
@@ -137,10 +146,10 @@
                     }
 
                     card.innerHTML = '<div class="dl-info"><strong>' + label + '</strong>' +
-                        '<span class="badge badge-warning">' + stage +
+                        '<span class="badge badge-warning">' + stageText +
                         (pct > 0 ? ' ' + pct + '%' : '') +
                         '</span></div>' + details +
-                        ((stage === 'downloading' || stage === 'decrypting' || stage === 'processing') ? '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>' : '');
+                        ((stage === 'downloading' || stage === 'decrypting' || stage === 'processing' || stage === 'moving') ? '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>' : '');
                 } else if (d.type === 'complete') {
                     if (card) card.remove();
                     // Add row to completed table
