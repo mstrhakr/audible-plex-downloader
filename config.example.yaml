@@ -1,0 +1,35 @@
+# config.yaml
+server:
+  port: 8080
+
+database:
+  type: sqlite  # sqlite | postgres
+  path: /config/audible.db  # for sqlite
+  # dsn: postgres://user:pass@host/db  # for postgres
+
+paths:
+  audiobooks: /audiobooks
+  downloads: /downloads
+  config: /config
+
+output:
+  format: m4b  # m4b | mp3
+  embed_cover: true
+  chapter_file: true
+
+download:
+  download_concurrency: 0  # 0 = auto (I/O bound, can be higher)
+  decrypt_concurrency: 0   # 0 = auto (CPU bound, uses fewer cores)
+  process_concurrency: 0   # 0 = auto (mixed workload)
+
+sync:
+  schedule: "0 */6 * * *"  # every 6 hours
+  enabled: true
+
+plex:
+  url: ""
+  token: ""
+
+log:
+  level: info  # trace, debug, info, warn, error, fatal
+  json: false  # true for structured JSON output

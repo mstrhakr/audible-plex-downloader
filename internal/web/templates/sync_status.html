@@ -1,0 +1,10 @@
+{{define "sync_status.html"}}
+{{if .Running}}
+<span class="status-msg">Syncing library: {{.BooksScanned}} scanned{{if gt .BooksFound 0}} / {{.BooksFound}}{{end}}, {{.BooksAdded}} new</span>
+<div class="progress-bar sync-progress">
+	<div class="progress-fill" style="width: {{printf "%.0f" (mul .Percent 100)}}%"></div>
+</div>
+{{else if .Message}}
+<span class="status-msg {{if eq .Status "complete"}}success{{else if eq .Status "failed"}}error{{end}}">{{.Message}}</span>
+{{end}}
+{{end}}

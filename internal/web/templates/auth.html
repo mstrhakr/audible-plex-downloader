@@ -1,0 +1,56 @@
+{{define "content"}}
+<h1>Audible Authentication</h1>
+
+{{if .Error}}
+<div class="info-box" style="border-color: var(--error); margin-bottom: 1.5rem;">
+    <strong>Error:</strong> {{.Error}}
+</div>
+{{end}}
+
+{{if .Success}}
+<div class="info-box" style="border-color: var(--success); margin-bottom: 1.5rem;">
+    <strong>{{.Success}}</strong>
+</div>
+{{end}}
+
+{{if .Authenticated}}
+<div class="info-box" style="border-color: var(--success); margin-bottom: 1.5rem;">
+    <strong>&#10003; Authenticated</strong> &mdash; You are connected to Audible.
+    <br><br>
+    <a href="/" class="btn btn-primary">Go to Dashboard</a>
+</div>
+{{else if .AuthURL}}
+<div class="auth-flow">
+    <div class="info-box" style="margin-bottom: 1.5rem;">
+        <strong>Step 1:</strong> A new tab has opened with Amazon's login page. Sign in with your Amazon/Audible account.
+    </div>
+
+    <div class="info-box" style="margin-bottom: 1.5rem;">
+        <strong>Step 2:</strong> After signing in you'll land on a page that says <em>"Looking for Something?"</em> or shows a blank page.
+        That's normal! <strong>Copy the entire URL</strong> from that tab's address bar and paste it below.
+    </div>
+
+    <form method="POST" action="/auth/callback" class="settings-form">
+        <input type="hidden" name="code_verifier" value="{{.CodeVerifier}}">
+        <input type="hidden" name="device_serial" value="{{.DeviceSerial}}">
+        <div class="form-group">
+            <label for="redirect_url">Redirect URL</label>
+            <input type="text" id="redirect_url" name="redirect_url"
+                   placeholder="https://www.amazon.com/ap/maplanding?openid.oa2.authorization_code=..."
+                   autofocus required>
+        </div>
+        <button type="submit" class="btn btn-primary">Complete Authentication</button>
+    </form>
+</div>
+<script>window.open("{{.AuthURL}}", "_blank");</script>
+{{else}}
+<div class="auth-flow">
+    <p>You need to authenticate with your Amazon/Audible account to sync and download your library.</p>
+    <p>This will open Amazon's login page in a new tab. After signing in, you'll paste the
+       redirect URL back here to complete the process.</p>
+    <form method="POST" action="/auth/start">
+        <button type="submit" class="btn btn-primary">Sign in with Amazon</button>
+    </form>
+</div>
+{{end}}
+{{end}}

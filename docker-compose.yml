@@ -1,0 +1,16 @@
+services:
+  audible-plex:
+    build: .
+    container_name: audible-plex-downloader
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config:/config
+      - /path/to/audiobooks:/audiobooks
+      - ./downloads:/downloads
+    environment:
+      - DATABASE_TYPE=sqlite
+      # - DATABASE_DSN=postgres://user:pass@postgres/audible?sslmode=disable
+      # - PLEX_URL=http://plex:32400
+      # - PLEX_TOKEN=
+    restart: unless-stopped

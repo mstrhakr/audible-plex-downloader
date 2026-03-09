@@ -1,0 +1,40 @@
+{{define "library_table.html"}}
+<p class="result-count">{{.Total}} books</p>
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Cover</th>
+            <th>Title</th>
+            <th>Author</th>
+            <th>Duration</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .Books}}
+        <tr>
+            <td class="cover-cell">
+                {{if .CoverURL}}<img src="{{.CoverURL}}" alt="" class="cover-thumb">{{end}}
+            </td>
+            <td>
+                <a href="/library/{{.ID}}">{{.Title}}</a>
+                {{if .Series}}<br><small>{{.Series}} #{{.SeriesPosition}}</small>{{end}}
+            </td>
+            <td>{{.Author}}</td>
+            <td>{{formatDuration .Duration}}</td>
+            <td><span class="badge {{statusBadge .Status}}" id="status-book-{{.ID}}">{{.Status}}</span></td>
+            <td>
+                {{if eq (printf "%s" .Status) "new"}}
+                <button hx-post="/api/downloads/queue/{{.ASIN}}" hx-swap="none" hx-on::after-request="this.remove()" class="btn btn-small btn-primary">Queue</button>
+                {{else if eq (printf "%s" .Status) "failed"}}
+                <button hx-post="/api/downloads/queue/{{.ASIN}}" hx-swap="none" hx-on::after-request="this.remove()" class="btn btn-small btn-primary">Retry</button>
+                {{end}}
+            </td>
+        </tr>
+        {{else}}
+        <tr><td colspan="6" class="empty">No books found</td></tr>
+        {{end}}
+    </tbody>
+</table>
+{{end}}

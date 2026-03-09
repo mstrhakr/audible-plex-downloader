@@ -1,0 +1,39 @@
+{{define "content"}}
+<h1>Settings</h1>
+
+<form hx-post="/api/settings" hx-target="#save-status" hx-swap="innerHTML" class="settings-form">
+    <div class="form-group">
+        <label for="sync_schedule">Sync Schedule (cron)</label>
+        <input type="text" id="sync_schedule" name="sync_schedule" value="{{.SyncSchedule}}" placeholder="0 */6 * * *">
+        <small>Standard cron expression. Leave empty to disable.</small>
+    </div>
+
+    <div class="form-group">
+        <label for="output_format">Output Format</label>
+        <select id="output_format" name="output_format">
+            <option value="m4b" {{if eq .OutputFormat "m4b"}}selected{{end}}>M4B (Single File)</option>
+            <option value="mp3" {{if eq .OutputFormat "mp3"}}selected{{end}}>MP3 (Chapter Split)</option>
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save Settings</button>
+    <span id="save-status"></span>
+</form>
+
+{{if .Devices}}
+<h2>Registered Devices</h2>
+<table class="data-table">
+    <thead><tr><th>Name</th><th>Marketplace</th><th>Active</th><th>Created</th></tr></thead>
+    <tbody>
+    {{range .Devices}}
+    <tr>
+        <td>{{.Name}}</td>
+        <td>{{.Marketplace}}</td>
+        <td>{{if .IsActive}}✓{{else}}—{{end}}</td>
+        <td>{{formatDate .CreatedAt}}</td>
+    </tr>
+    {{end}}
+    </tbody>
+</table>
+{{end}}
+{{end}}

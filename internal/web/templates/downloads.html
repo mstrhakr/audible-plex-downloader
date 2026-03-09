@@ -1,0 +1,74 @@
+{{define "content"}}
+<h1>Downloads</h1>
+
+<div class="actions-bar">
+    <button hx-post="/api/downloads/retry-all" hx-target="#dl-status" hx-swap="innerHTML" class="btn btn-danger">Retry All Failed</button>
+    <span id="dl-status"></span>
+</div>
+
+<h2>Active Pipeline</h2>
+<div id="pipeline-cards">
+    {{range .Active}}
+    <div class="download-card" id="pipe-{{.ASIN}}">
+        <div class="dl-info">
+            <strong>{{.ASIN}}</strong>
+            <span class="badge badge-warning">downloading {{printf "%.0f" (mul .Progress 100)}}%</span>
+        </div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {{printf "%.0f" (mul .Progress 100)}}%"></div>
+        </div>
+    </div>
+    {{else}}
+    <p class="empty" id="pipe-empty">No active downloads</p>
+    {{end}}
+</div>
+
+<h2>Pending (<span id="pending-count">{{len .Pending}}</span>)</h2>
+<table class="data-table" id="pending-table">
+    <thead><tr><th>ASIN</th><th>Priority</th><th>Queued</th><th>Actions</th></tr></thead>
+    <tbody id="pending-body">
+    {{range .Pending}}
+    <tr id="pending-{{.ASIN}}">
+        <td>{{.ASIN}}</td>
+        <td>{{.Priority}}</td>
+        <td>{{formatDate .CreatedAt}}</td>
+        <td><button hx-post="/api/downloads/cancel/{{.ID}}" hx-swap="none" hx-on::after-request="this.closest('tr').remove()" class="btn btn-small btn-danger">Cancel</button></td>
+    </tr>
+    {{else}}
+    <tr id="pending-empty"><td colspan="4" class="empty">None</td></tr>
+    {{end}}
+    </tbody>
+</table>
+
+<h2>Completed (<span id="complete-count">{{len .Complete}}</span>)</h2>
+<table class="data-table" id="complete-table">
+    <thead><tr><th>ASIN</th><th>Title</th><th>Completed</th></tr></thead>
+    <tbody id="complete-body">
+    {{range .Complete}}
+    <tr>
+        <td>{{.ASIN}}</td>
+        <td>{{.ASIN}}</td>
+        <td>{{if .CompletedAt}}{{formatDate (deref .CompletedAt)}}{{end}}</td>
+    </tr>
+    {{else}}
+    <tr id="complete-empty"><td colspan="3" class="empty">None</td></tr>
+    {{end}}
+    </tbody>
+</table>
+
+<h2>Failed (<span id="failed-count">{{len .Failed}}</span>)</h2>
+<table class="data-table" id="failed-table">
+    <thead><tr><th>ASIN</th><th>Error</th><th>Actions</th></tr></thead>
+    <tbody id="failed-body">
+    {{range .Failed}}
+    <tr id="failed-{{.ID}}">
+        <td>{{.ASIN}}</td>
+        <td class="error-text">{{.Error}}</td>
+        <td><button hx-post="/api/downloads/retry/{{.ID}}" hx-swap="none" hx-on::after-request="this.closest('tr').remove()" class="btn btn-small btn-primary">Retry</button></td>
+    </tr>
+    {{else}}
+    <tr id="failed-empty"><td colspan="3" class="empty">None</td></tr>
+    {{end}}
+    </tbody>
+</table>
+{{end}}

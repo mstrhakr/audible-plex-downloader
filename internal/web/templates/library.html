@@ -1,0 +1,30 @@
+{{define "content"}}
+<h1>Library</h1>
+
+<div class="actions-bar">
+    <button hx-post="/api/sync" hx-target="#library-sync-status" hx-swap="innerHTML" class="btn btn-primary">
+        Sync Library
+    </button>
+    <span id="library-sync-status" hx-get="/api/sync/status" hx-trigger="load, every 2s" hx-swap="innerHTML"></span>
+</div>
+
+<div class="search-bar">
+    <input type="text" name="search" placeholder="Search books..."
+           hx-get="/library" hx-target="#book-table" hx-swap="innerHTML"
+           hx-trigger="keyup changed delay:300ms" hx-include="[name='status'],[name='sort'],[name='dir']"
+           value="{{.Filter.Search}}">
+    <select name="status" hx-get="/library" hx-target="#book-table" hx-swap="innerHTML"
+            hx-trigger="change" hx-include="[name='search'],[name='sort'],[name='dir']">
+        <option value="">All Statuses</option>
+        <option value="new">New</option>
+        <option value="queued">Queued</option>
+        <option value="downloading">Downloading</option>
+        <option value="complete">Complete</option>
+        <option value="failed">Failed</option>
+    </select>
+</div>
+
+<div class="table-container" id="book-table">
+    {{template "library_table.html" .}}
+</div>
+{{end}}

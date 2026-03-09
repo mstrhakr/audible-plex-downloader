@@ -1,0 +1,36 @@
+{{define "dashboard_summary.html"}}
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value" id="stat-total">{{.TotalBooks}}</div>
+        <div class="stat-label">Total Books</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-complete">{{.CompleteBooks}}</div>
+        <div class="stat-label">Downloaded</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-new">{{.NewBooks}}</div>
+        <div class="stat-label">New</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-active-dl">{{.ActiveDL}}</div>
+        <div class="stat-label">Active</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-pending-dl">{{.PendingDL}}</div>
+        <div class="stat-label">Pending</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-failed-dl">{{.FailedDL}}</div>
+        <div class="stat-label">Failed</div>
+    </div>
+</div>
+
+{{if .LastSync}}
+<div class="info-box">
+    <strong>Last Sync:</strong> {{formatDate .LastSync.StartedAt}} &mdash;
+    {{.LastSync.BooksFound}} found, {{.LastSync.BooksAdded}} added
+    ({{.LastSync.Status}})
+</div>
+{{end}}
+{{end}}

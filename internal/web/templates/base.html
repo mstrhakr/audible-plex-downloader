@@ -1,0 +1,182 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audible Plex Downloader</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/htmx.min.js"></script>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h2>📚 APD</h2>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/" class="{{if eq .Page "dashboard"}}active{{end}}">Dashboard</a></li>
+            <li><a href="/library" class="{{if eq .Page "library"}}active{{end}}">Library</a></li>
+            <li><a href="/downloads" class="{{if eq .Page "downloads"}}active{{end}}">Downloads</a></li>
+            <li><a href="/auth" class="{{if eq .Page "auth"}}active{{end}}">Auth</a></li>
+            <li><a href="/settings" class="{{if eq .Page "settings"}}active{{end}}">Settings</a></li>
+        </ul>
+    </nav>
+    <main class="content">
+        {{template "content" .}}
+    </main>
+    <div id="pipeline-activity"></div>
+    <script>
+    (function() {
+        var es = new EventSource('/api/events');
+
+        var badgeClass = {
+            'downloading': 'badge-warning',
+            'decrypting':  'badge-warning',
+            'processing':  'badge-warning',
+            'complete':    'badge-success',
+            'failed':      'badge-error',
+            'queued':      'badge-info',
+            'new':         'badge-neutral'
+        };
+
+        function fmtBytes(b) {
+            if (b <= 0) return '0 B';
+            var k = 1024, i = Math.floor(Math.log(b) / Math.log(k));
+            var units = ['B','KB','MB','GB','TB'];
+            return (b / Math.pow(k, i)).toFixed(1) + ' ' + units[i];
+        }
+
+        function fmtETA(written, total, speed) {
+            if (speed <= 0 || written >= total) return '';
+            var secs = Math.round((total - written) / speed);
+            if (secs < 60) return secs + 's';
+            if (secs < 3600) return Math.floor(secs/60) + 'm ' + (secs%60) + 's';
+            return Math.floor(secs/3600) + 'h ' + Math.floor((secs%3600)/60) + 'm';
+        }
+
+        es.addEventListener('pipeline', function(e) {
+            var d = JSON.parse(e.data);
+
+            // Helper: increment/decrement a counter element
+            function adj(id, delta) {
+                var el = document.getElementById(id);
+                if (!el) return;
+                var v = parseInt(el.textContent || '0') + delta;
+                el.textContent = v < 0 ? 0 : v;
+            }
+
+            // --- Dashboard stat updates ---
+            if (d.type === 'started') {
+                adj('stat-active-dl', 1);
+                adj('stat-pending-dl', -1);
+            }
+            if (d.type === 'complete') {
+                adj('stat-active-dl', -1);
+                adj('stat-complete', 1);
+            }
+            if (d.type === 'failed') {
+                adj('stat-active-dl', -1);
+                adj('stat-failed-dl', 1);
+            }
+
+            // --- Library row status badge updates ---
+            var badge = document.getElementById('status-book-' + d.book_id);
+            if (badge) {
+                var stage = d.stage || d.type;
+                badge.textContent = stage;
+                badge.className = 'badge ' + (badgeClass[stage] || 'badge-neutral');
+            }
+
+            // --- Downloads page: active pipeline card ---
+            var activity = document.getElementById('pipeline-cards');
+            if (activity) {
+                var card = document.getElementById('pipe-' + d.asin);
+                if (d.type === 'started' || d.type === 'progress' || d.type === 'stage') {
+                    var stage = d.stage || (d.type === 'started' ? 'downloading' : '');
+                    var isActiveStage = stage === 'downloading' || stage === 'decrypting' || stage === 'processing';
+
+                    // Keep cards focused on active work only; queued/non-active states should not linger.
+                    if (!isActiveStage) {
+                        if (card) card.remove();
+                        return;
+                    }
+
+                    // Remove pending row if present
+                    var pendingRow = document.getElementById('pending-' + d.asin);
+                    if (pendingRow) { pendingRow.remove(); adj('pending-count', -1); }
+                    var emptyRow = document.getElementById('pipe-empty');
+                    if (emptyRow) emptyRow.remove();
+
+                    if (!card) {
+                        card = document.createElement('div');
+                        card.id = 'pipe-' + d.asin;
+                        card.className = 'download-card';
+                        activity.appendChild(card);
+                    }
+                    var pct = Math.round((d.progress || 0) * 100);
+                    var label = d.title || d.asin;
+
+                    var details = '';
+                    if (stage === 'downloading' || stage === 'decrypting' || stage === 'processing') {
+                        var sizeInfo = '';
+                        if (d.total_bytes > 0) {
+                            sizeInfo = fmtBytes(d.bytes_written) + ' / ' + fmtBytes(d.total_bytes);
+                        }
+                        var speedInfo = '';
+                        if (stage === 'downloading' && d.speed > 0) {
+                            speedInfo = fmtBytes(d.speed) + '/s';
+                        } else if (stage !== 'downloading' && d.speed > 0) {
+                            speedInfo = d.speed.toFixed(2) + 'x';
+                        }
+                        var eta = d.speed > 0 && d.total_bytes > 0 && stage === 'downloading' ? fmtETA(d.bytes_written, d.total_bytes, d.speed) : '';
+                        var parts = [];
+                        if (sizeInfo) parts.push(sizeInfo);
+                        if (speedInfo) parts.push(speedInfo);
+                        if (eta) parts.push('ETA ' + eta);
+                        details = parts.length > 0 ? '<div class="dl-details">' + parts.join(' &middot; ') + '</div>' : '';
+                    }
+
+                    card.innerHTML = '<div class="dl-info"><strong>' + label + '</strong>' +
+                        '<span class="badge badge-warning">' + stage +
+                        (pct > 0 ? ' ' + pct + '%' : '') +
+                        '</span></div>' + details +
+                        ((stage === 'downloading' || stage === 'decrypting' || stage === 'processing') ? '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>' : '');
+                } else if (d.type === 'complete') {
+                    if (card) card.remove();
+                    // Add row to completed table
+                    var cb = document.getElementById('complete-body');
+                    if (cb) {
+                        var empty = document.getElementById('complete-empty');
+                        if (empty) empty.remove();
+                        var tr = document.createElement('tr');
+                        var label = d.title || d.asin;
+                        tr.innerHTML = '<td>' + d.asin + '</td><td>' + label + '</td><td>just now</td>';
+                        cb.insertBefore(tr, cb.firstChild);
+                        adj('complete-count', 1);
+                    }
+                } else if (d.type === 'failed') {
+                    if (card) card.remove();
+                    // Add row to failed table
+                    var fb = document.getElementById('failed-body');
+                    if (fb) {
+                        var empty = document.getElementById('failed-empty');
+                        if (empty) empty.remove();
+                        var tr = document.createElement('tr');
+                        var label = d.title || d.asin;
+                        var errMsg = d.error || 'unknown error';
+                        tr.innerHTML = '<td>' + d.asin + '</td><td class="error-text">' + errMsg + '</td><td>' + label + '</td>';
+                        fb.insertBefore(tr, fb.firstChild);
+                        adj('failed-count', 1);
+                    }
+                }
+            }
+        });
+
+        es.onerror = function() {
+            setTimeout(function() { es = new EventSource('/api/events'); }, 5000);
+        };
+    })();
+    </script>
+</body>
+</html>
+{{end}}

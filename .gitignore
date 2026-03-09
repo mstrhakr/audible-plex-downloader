@@ -1,0 +1,47 @@
+# Binaries
+audible-plex-downloader.exe
+audible-plex-downloader
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.txt
+coverage.html
+
+# Test data and outputs
+testdata/
+test_output.m4b
+*.aax
+*.m4b
+
+# Configuration files with secrets
+config.yaml
+credentials.json
+!config.example.yaml
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Docker volumes
+docker-data/
