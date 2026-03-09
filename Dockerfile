@@ -21,9 +21,12 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /audible-plex-downloader ./cmd/se
 # Runtime stage
 FROM alpine:3.19
 
-RUN apk add --no-cache ffmpeg ca-certificates tzdata
+RUN apk add --no-cache ffmpeg ca-certificates tzdata su-exec
 
 COPY --from=builder /audible-plex-downloader /usr/local/bin/audible-plex-downloader
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 RUN mkdir -p /config /audiobooks /downloads
 
@@ -31,4 +34,4 @@ EXPOSE 8080
 
 VOLUME ["/config", "/audiobooks", "/downloads"]
 
-ENTRYPOINT ["audible-plex-downloader"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
