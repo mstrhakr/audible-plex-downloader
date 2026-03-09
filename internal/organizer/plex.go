@@ -48,6 +48,7 @@ func (o *PlexOrganizer) Organize(ctx context.Context, book *database.Book, enric
 
 // OrganizeWithProgress performs the same work as Organize and reports file move progress.
 // The callback receives bytes moved and total bytes.
+// If a Plex library path is configured in the database, it will be used instead of the configured libraryRoot.
 func (o *PlexOrganizer) OrganizeWithProgress(ctx context.Context, book *database.Book, enriched *audnexus.EnrichedBook, inputPath string, onMoveProgress func(moved, total int64)) (string, error) {
 	_ = ctx
 	author := strings.TrimSpace(enriched.Author())
@@ -61,7 +62,16 @@ func (o *PlexOrganizer) OrganizeWithProgress(ctx context.Context, book *database
 	}
 	filenameBase := buildFilenameBase(title, author)
 
-	bookDir := filepath.Join(o.libraryRoot, sanitizePath(author), sanitizePath(title))
+	// Try to get Plex library path from database; fall back to configured path
+	libraryRoot := o.libraryRoot
+	if plexPath, err := o.db.GetSetting(ctx, "plex_section_path"); err == nil && strings.TrimSpace(plexPath) != "" {
+		orgLog.Debug().Str("plex_path", plexPath).Msg("using plex library path for organization")
+		libraryRoot = plexPath
+	} else if err != nil && err.Error() != "setting not found" {
+		orgLog.Warn().Err(err).Msg("failed to fetch plex path, using configured path")
+	}
+
+	bookDir := filepath.Join(libraryRoot, sanitizePath(author), sanitizePath(title))
 	if err := os.MkdirAll(bookDir, 0750); err != nil {
 		return "", fmt.Errorf("create book directory: %w", err)
 	}

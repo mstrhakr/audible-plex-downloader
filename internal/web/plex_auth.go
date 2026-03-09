@@ -75,6 +75,22 @@ type plexSectionDirectory struct {
 	Type  string `xml:"type,attr"`
 }
 
+// plexSectionDetailResponse wraps the detailed response from /library/sections/{id}
+type plexSectionDetailResponse struct {
+	Directories []plexSectionDetailDirectory `xml:"Directory"`
+}
+
+type plexSectionDetailDirectory struct {
+	Key       string         `xml:"key,attr"`
+	Title     string         `xml:"title,attr"`
+	Type      string         `xml:"type,attr"`
+	Locations []plexLocation `xml:"Location"`
+}
+
+type plexLocation struct {
+	Path string `xml:"path,attr"`
+}
+
 func (s *Server) plexClientID() string {
 	hostname, _ := os.Hostname()
 	hostname = strings.TrimSpace(strings.ToLower(hostname))
@@ -184,12 +200,21 @@ func (s *Server) handlePlexSectionSelect(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
+	plexURL, plexToken := s.getPlexSettings(ctx)
+
 	if err := s.db.SetSetting(ctx, "plex_section_id", sectionID); err != nil {
 		s.renderAuthPage(c, http.StatusInternalServerError, gin.H{"Error": "Failed to save Plex section: " + err.Error()})
 		return
 	}
 	if sectionTitle != "" {
 		_ = s.db.SetSetting(ctx, "plex_section_title", sectionTitle)
+	}
+
+	// Fetch and save the actual library path from Plex
+	if plexURL != "" && plexToken != "" {
+		if sectionPath, err := s.plexSectionLocation(ctx, plexURL, plexToken, sectionID); err == nil && sectionPath != "" {
+			_ = s.db.SetSetting(ctx, "plex_section_path", sectionPath)
+		}
 	}
 
 	s.renderAuthPage(c, http.StatusOK, gin.H{"Success": "Plex library section saved."})
@@ -533,6 +558,46 @@ func (s *Server) plexSectionItemCount(ctx context.Context, plexURL, token, secti
 		return sectionResp.TotalSize, nil
 	}
 	return sectionResp.Size, nil
+}
+
+// plexSectionLocation queries Plex for the filesystem path of a library section.
+// Returns the first location path found for the section.
+func (s *Server) plexSectionLocation(ctx context.Context, plexURL, token, sectionID string) (string, error) {
+	u, err := buildPlexURL(plexURL, "/library/sections/"+url.PathEscape(sectionID), token, nil)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return "", err
+	}
+	s.addPlexHeaders(req, token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return "", fmt.Errorf("section detail endpoint returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var detailResp plexSectionDetailResponse
+	if err := xml.NewDecoder(resp.Body).Decode(&detailResp); err != nil {
+		return "", fmt.Errorf("failed to parse section details: %w", err)
+	}
+
+	// Return the first location path found
+	for _, dir := range detailResp.Directories {
+		if len(dir.Locations) > 0 && strings.TrimSpace(dir.Locations[0].Path) != "" {
+			return dir.Locations[0].Path, nil
+		}
+	}
+
+	return "", fmt.Errorf("no location path found for section %s", sectionID)
 }
 
 func (s *Server) addPlexHeaders(req *http.Request, token string) {
