@@ -11,16 +11,16 @@
     <button hx-post="/api/downloads/retry-all" hx-target="#sync-status" hx-swap="innerHTML" class="btn btn-danger">
         Retry All Failed
     </button>
-    <span id="sync-status" hx-get="/api/sync/status" hx-trigger="load, every 2s" hx-swap="innerHTML"></span>
+    <span id="sync-status" hx-get="/api/sync/status" hx-trigger="load, every 5s" hx-swap="innerHTML"></span>
 </div>
 
-<div id="dashboard-summary" hx-get="/api/dashboard/summary" hx-trigger="load, every 5s" hx-swap="innerHTML">
+<div id="dashboard-summary" hx-get="/api/dashboard/summary" hx-trigger="load, every 12s queue:last" hx-swap="innerHTML">
     {{template "dashboard_summary.html" .}}
 </div>
 
 <div id="pipeline-cards"></div>
 
-<div id="dashboard-downloads" hx-get="/api/dashboard/downloads" hx-trigger="load, every 5s" hx-swap="innerHTML">
+<div id="dashboard-downloads" hx-get="/api/dashboard/downloads" hx-trigger="load, every 12s queue:last" hx-swap="innerHTML">
     {{template "dashboard_downloads.html" .}}
 </div>
 {{end}}

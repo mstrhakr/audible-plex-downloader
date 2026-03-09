@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -47,6 +48,13 @@ type Server struct {
 	audiobooksPath string
 	downloadsPath  string
 	configPath     string
+	plexCountCache struct {
+		mu        sync.Mutex
+		key       string
+		count     int
+		fetchedAt time.Time
+		ok        bool
+	}
 }
 
 // NewServer creates a new web server with all handlers registered.
@@ -251,11 +259,29 @@ func ginLogger() gin.HandlerFunc {
 		start := time.Now()
 		c.Next()
 		latency := time.Since(start)
+		path := c.Request.URL.Path
 
-		webLog.Debug().
+		// /api/events is a long-lived SSE stream; duration mostly reflects
+		// connection lifetime rather than handler slowness.
+		if path == "/api/events" {
+			webLog.Trace().
+				Int("status", c.Writer.Status()).
+				Str("method", c.Request.Method).
+				Str("path", path).
+				Dur("stream_duration", latency).
+				Msg("sse stream closed")
+			return
+		}
+
+		evt := webLog.Debug()
+		if latency >= 2*time.Second {
+			evt = webLog.Warn()
+		}
+
+		evt.
 			Int("status", c.Writer.Status()).
 			Str("method", c.Request.Method).
-			Str("path", c.Request.URL.Path).
+			Str("path", path).
 			Dur("latency", latency).
 			Msg("request")
 	}
@@ -268,6 +294,15 @@ func (s *Server) handleDashboard(c *gin.Context) {
 }
 
 func (s *Server) getDashboardData(ctx context.Context) gin.H {
+	data := s.getDashboardSummaryData(ctx)
+	for k, v := range s.getDashboardDownloadsData(ctx) {
+		data[k] = v
+	}
+	data["Page"] = "dashboard"
+	return data
+}
+
+func (s *Server) getDashboardSummaryData(ctx context.Context) gin.H {
 	_, totalBooks, _ := s.db.ListBooks(ctx, database.BookFilter{Limit: 1})
 	completeStatus := database.BookStatusComplete
 	_, completeBooks, _ := s.db.ListBooks(ctx, database.BookFilter{Status: &completeStatus, Limit: 1})
@@ -281,20 +316,6 @@ func (s *Server) getDashboardData(ctx context.Context) gin.H {
 
 	failedStatus := database.DownloadStatusFailed
 	failedDownloads, _ := s.db.ListDownloads(ctx, &failedStatus)
-	failedRecent := failedDownloads
-	if len(failedRecent) > 10 {
-		failedRecent = failedRecent[:10]
-	}
-	downloadCompleteStatus := database.DownloadStatusComplete
-	completeDownloads, _ := s.db.ListDownloads(ctx, &downloadCompleteStatus)
-	if len(completeDownloads) > 10 {
-		completeDownloads = completeDownloads[:10]
-	}
-
-	rowsForTitles := make([]database.DownloadQueue, 0, len(failedRecent)+len(completeDownloads))
-	rowsForTitles = append(rowsForTitles, failedRecent...)
-	rowsForTitles = append(rowsForTitles, completeDownloads...)
-	downloadTitles := s.getDownloadTitles(ctx, rowsForTitles)
 
 	lastSync, _ := s.db.GetLastSync(ctx)
 
@@ -310,10 +331,7 @@ func (s *Server) getDashboardData(ctx context.Context) gin.H {
 	plexCoverage := 0
 	plexCoverageAvailable := false
 	if plexConfigured && plexSectionConfigured {
-		plexCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		defer cancel()
-
-		items, err := s.plexSectionItemCount(plexCtx, plexURL, plexToken, strings.TrimSpace(plexSectionID))
+		items, err := s.getCachedPlexSectionItemCount(ctx, plexURL, plexToken, strings.TrimSpace(plexSectionID))
 		if err != nil {
 			webLog.Debug().Err(err).Msg("failed to fetch Plex section item count for dashboard")
 		} else {
@@ -337,9 +355,6 @@ func (s *Server) getDashboardData(ctx context.Context) gin.H {
 		"ActiveDL":        len(activeDownloads),
 		"PendingDL":       len(pendingDownloads),
 		"FailedDL":        len(failedDownloads),
-		"FailedDownloads": failedRecent,
-		"DoneDownloads":   completeDownloads,
-		"DownloadTitles":  downloadTitles,
 		"LastSync":        lastSync,
 		"PlexConfigured":  plexConfigured,
 		"PlexSection":     strings.TrimSpace(plexSectionTitle),
@@ -347,8 +362,62 @@ func (s *Server) getDashboardData(ctx context.Context) gin.H {
 		"PlexItemsSet":    plexLibraryItemsAvailable,
 		"PlexCoverage":    plexCoverage,
 		"PlexCoverageSet": plexCoverageAvailable,
-		"Page":            "dashboard",
 	}
+}
+
+func (s *Server) getDashboardDownloadsData(ctx context.Context) gin.H {
+	failedStatus := database.DownloadStatusFailed
+	failedDownloads, _ := s.db.ListDownloads(ctx, &failedStatus)
+	failedRecent := failedDownloads
+	if len(failedRecent) > 10 {
+		failedRecent = failedRecent[:10]
+	}
+
+	completeStatus := database.DownloadStatusComplete
+	completeDownloads, _ := s.db.ListDownloads(ctx, &completeStatus)
+	if len(completeDownloads) > 10 {
+		completeDownloads = completeDownloads[:10]
+	}
+
+	rowsForTitles := make([]database.DownloadQueue, 0, len(failedRecent)+len(completeDownloads))
+	rowsForTitles = append(rowsForTitles, failedRecent...)
+	rowsForTitles = append(rowsForTitles, completeDownloads...)
+
+	return gin.H{
+		"FailedDL":        len(failedDownloads),
+		"FailedDownloads": failedRecent,
+		"DoneDownloads":   completeDownloads,
+		"DownloadTitles":  s.getDownloadTitles(ctx, rowsForTitles),
+	}
+}
+
+func (s *Server) getCachedPlexSectionItemCount(ctx context.Context, plexURL, plexToken, sectionID string) (int, error) {
+	key := plexURL + "|" + sectionID
+
+	s.plexCountCache.mu.Lock()
+	if s.plexCountCache.key == key && s.plexCountCache.ok && time.Since(s.plexCountCache.fetchedAt) < 30*time.Second {
+		count := s.plexCountCache.count
+		s.plexCountCache.mu.Unlock()
+		return count, nil
+	}
+	s.plexCountCache.mu.Unlock()
+
+	plexCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	items, err := s.plexSectionItemCount(plexCtx, plexURL, plexToken, sectionID)
+	if err != nil {
+		return 0, err
+	}
+
+	s.plexCountCache.mu.Lock()
+	s.plexCountCache.key = key
+	s.plexCountCache.count = items
+	s.plexCountCache.fetchedAt = time.Now()
+	s.plexCountCache.ok = true
+	s.plexCountCache.mu.Unlock()
+
+	return items, nil
 }
 
 func (s *Server) getDownloadTitles(ctx context.Context, rows []database.DownloadQueue) map[string]string {
@@ -369,13 +438,13 @@ func (s *Server) getDownloadTitles(ctx context.Context, rows []database.Download
 // handleDashboardSummary renders only the dashboard summary block for HTMX polling.
 func (s *Server) handleDashboardSummary(c *gin.Context) {
 	ctx := c.Request.Context()
-	c.HTML(http.StatusOK, "dashboard_summary.html", s.getDashboardData(ctx))
+	c.HTML(http.StatusOK, "dashboard_summary.html", s.getDashboardSummaryData(ctx))
 }
 
 // handleDashboardDownloads renders dashboard done/failed download tables for HTMX polling.
 func (s *Server) handleDashboardDownloads(c *gin.Context) {
 	ctx := c.Request.Context()
-	c.HTML(http.StatusOK, "dashboard_downloads.html", s.getDashboardData(ctx))
+	c.HTML(http.StatusOK, "dashboard_downloads.html", s.getDashboardDownloadsData(ctx))
 }
 
 // handleLibrary renders the library page with search/filter support.

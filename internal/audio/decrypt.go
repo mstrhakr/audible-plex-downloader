@@ -53,7 +53,19 @@ func (f *FFmpeg) DecryptAAXWithMetadata(inputPath, outputPath, activationBytes s
 			Str("input", inputPath).
 			Str("container", containerType).
 			Msg("file is AAXC format (DRM v4) but AAX activation bytes provided (DRM v2/v3); this will produce corrupted output")
-		return fmt.Errorf("container format mismatch: file is %s format but AAX activation bytes provided; AAXC format requires audible_key+audible_iv credentials", containerType)
+		return fmt.Errorf(
+			"AAXC Format Detected But AAX Credentials Provided:\n"+
+				"The file '%s' has AAXC format container (DRM v4) but only AAX activation bytes are available.\n"+
+				"This happens when:\n"+
+				"  1. Audible API did not return AAXC Key+IV credentials during download\n"+
+				"  2. Your Audible account credentials may be outdated or invalid\n"+
+				"  3. This particular audiobook may only support classic AAX format on your account\n"+
+				"\n"+
+				"To fix:\n"+
+				"  • Delete the incomplete download file and re-authenticate with fresh Audible credentials\n"+
+				"  • Check that your Audible account has rights to download in AAXC format\n"+
+				"  • For now, you can only decrypt AAX format books (%s extension)\n",
+			inputPath, ".aax")
 	}
 
 	err = f.runWithProgress(f.buildDecryptArgs(inputPath, outputPath, activationBytes, "", "", meta), progressCb)

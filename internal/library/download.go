@@ -891,8 +891,22 @@ func (w *fileDownloadWriter) OnStart(asin string, contentLength int64, info *aud
 
 	// Determine file extension from content type
 	ext := ".aax"
+	licenseKeyStr := ""
 	if info.LicenseResponse != nil && info.LicenseResponse.Key != "" {
 		ext = ".aaxc"
+		licenseKeyStr = info.LicenseResponse.Key
+		dlLog.Info().Str("asin", asin).Str("content_type", info.ContentType).Msg("AAXC license received, will save as .aaxc")
+	} else {
+		// Debug why we're not getting AAXC
+		if info.LicenseResponse != nil {
+			licenseKeyStr = info.LicenseResponse.Key
+		}
+		dlLog.Debug().
+			Str("asin", asin).
+			Str("content_type", info.ContentType).
+			Bool("license_response_nil", info.LicenseResponse == nil).
+			Str("license_key", licenseKeyStr).
+			Msg("no AAXC credentials, downloading as AAX")
 	}
 
 	filePath := filepath.Join(w.downloadDir, asin+ext)
