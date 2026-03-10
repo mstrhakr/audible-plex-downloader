@@ -48,6 +48,12 @@ Then visit `http://localhost:8080` to authenticate and manage your library.
 
 Configuration can be provided via `config.yaml` or environment variables:
 
+Precedence is:
+
+1. DB-backed settings saved from the web UI (for runtime/user preferences)
+2. Environment variables
+3. `config.yaml` defaults
+
 | Env Variable | Default | Description |
 |---|---|---|
 | `DATABASE_TYPE` | `sqlite` | Database backend (`sqlite` or `postgres`) |
@@ -58,9 +64,12 @@ Configuration can be provided via `config.yaml` or environment variables:
 | `CONFIG_PATH` | `/config` | Config/auth storage directory |
 | `OUTPUT_FORMAT` | `m4b` | Output format (`m4b` or `mp3`) |
 | `DOWNLOAD_CONCURRENCY` | `0` | Concurrent downloads (0 = auto-detect based on CPU) |
+| `DECRYPT_CONCURRENCY` | `0` | Concurrent decrypt workers (0 = auto-detect) |
+| `PROCESS_CONCURRENCY` | `0` | Concurrent process workers (0 = auto-detect) |
 | `PLEX_URL` | | Plex server URL for library scan triggers |
 | `PLEX_TOKEN` | | Plex authentication token |
 | `SYNC_SCHEDULE` | `0 */6 * * *` | Cron schedule for library sync |
+| `SYNC_MODE` | `full` | Scheduled sync mode (`quick` or `full`) |
 | `PUID` | | Unraid-style runtime UID override (used when container starts as root) |
 | `PGID` | | Unraid-style runtime GID override (used when container starts as root) |
 | `TAKE_OWNERSHIP` | `false` | If `true`, recursively `chown`s mounted dirs on startup before dropping privileges |

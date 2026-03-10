@@ -13,16 +13,20 @@ paths:
   config: /config
 
 output:
+  # Default values for new installs. These are persisted in DB settings and can
+  # be changed in the web UI without editing this file.
   format: m4b  # m4b | mp3
   embed_cover: true
   chapter_file: true
 
 download:
+  # Worker counts are startup settings. Save in UI, then restart to apply.
   download_concurrency: 0  # 0 = auto (I/O bound, can be higher)
   decrypt_concurrency: 0   # 0 = auto (CPU bound, uses fewer cores)
   process_concurrency: 0   # 0 = auto (mixed workload)
 
 sync:
+  # Scheduler settings are startup settings. Save in UI, then restart to apply.
   schedule: "0 */6 * * *"  # every 6 hours
   enabled: true
   mode: full  # quick = Audible only; full = Audible + filesystem + Plex scan

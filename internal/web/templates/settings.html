@@ -42,7 +42,27 @@
             <div class="form-group">
                 <label for="sync_schedule">Sync Schedule (cron)</label>
                 <input type="text" id="sync_schedule" name="sync_schedule" value="{{.SyncSchedule}}" placeholder="0 */6 * * *">
+                <input type="hidden" name="sync_schedule_sent" value="1">
                 <small>Standard cron expression. Leave empty to disable. Example: <code>0 */6 * * *</code> = every 6 hours</small>
+            </div>
+
+            <div class="form-group">
+                <label for="sync_enabled">Enable Scheduled Sync</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="sync_enabled" name="sync_enabled" value="true" {{if .SyncEnabled}}checked{{end}}>
+                    <span class="toggle-slider"></span>
+                </label>
+                <input type="hidden" name="sync_enabled_sent" value="1">
+                <small>Controls whether cron-based sync runs automatically.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="sync_mode">Scheduled Sync Mode</label>
+                <select id="sync_mode" name="sync_mode">
+                    <option value="full" {{if eq .SyncMode "full"}}selected{{end}}>Full (Audible + filesystem + Plex)</option>
+                    <option value="quick" {{if eq .SyncMode "quick"}}selected{{end}}>Quick (Audible-focused)</option>
+                </select>
+                <small>Mode used by scheduled sync runs.</small>
             </div>
 
             <div class="form-group">
@@ -85,6 +105,26 @@
                 </select>
                 <small>Minimum severity level for log output. Changes take effect immediately.</small>
             </div>
+
+            <div class="form-group">
+                <label for="download_concurrency">Download Workers</label>
+                <input type="number" id="download_concurrency" name="download_concurrency" value="{{.DownloadConcurrency}}" min="0" max="16">
+                <small>0 = auto. Higher values can improve throughput on fast networks.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="decrypt_concurrency">Decrypt Workers</label>
+                <input type="number" id="decrypt_concurrency" name="decrypt_concurrency" value="{{.DecryptConcurrency}}" min="0" max="16">
+                <small>0 = auto. This stage is CPU-heavy.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="process_concurrency">Process Workers</label>
+                <input type="number" id="process_concurrency" name="process_concurrency" value="{{.ProcessConcurrency}}" min="0" max="16">
+                <small>0 = auto. Controls metadata/organize stage parallelism.</small>
+            </div>
+
+            <p class="muted">Note: sync schedule/mode and worker concurrency changes are applied on next restart.</p>
 
             <button type="submit" class="btn btn-primary">Save Settings</button>
             <span id="save-status"></span>

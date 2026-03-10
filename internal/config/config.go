@@ -151,13 +151,13 @@ func (c *Config) LoadFromEnv() {
 	if v := os.Getenv("OUTPUT_FORMAT"); v != "" {
 		c.Output.Format = v
 	}
-	if v := os.Getenv("DOWNLOAD_DOWNLOAD_CONCURRENCY"); v != "" {
+	if v := firstEnv("DOWNLOAD_CONCURRENCY", "DOWNLOAD_DOWNLOAD_CONCURRENCY"); v != "" {
 		fmt.Sscanf(v, "%d", &c.Download.DownloadConcurrency)
 	}
-	if v := os.Getenv("DOWNLOAD_DECRYPT_CONCURRENCY"); v != "" {
+	if v := firstEnv("DECRYPT_CONCURRENCY", "DOWNLOAD_DECRYPT_CONCURRENCY"); v != "" {
 		fmt.Sscanf(v, "%d", &c.Download.DecryptConcurrency)
 	}
-	if v := os.Getenv("DOWNLOAD_PROCESS_CONCURRENCY"); v != "" {
+	if v := firstEnv("PROCESS_CONCURRENCY", "DOWNLOAD_PROCESS_CONCURRENCY"); v != "" {
 		fmt.Sscanf(v, "%d", &c.Download.ProcessConcurrency)
 	}
 	if v := os.Getenv("PLEX_URL"); v != "" {
@@ -169,7 +169,24 @@ func (c *Config) LoadFromEnv() {
 	if v := os.Getenv("SYNC_SCHEDULE"); v != "" {
 		c.Sync.Schedule = v
 	}
+	if v := os.Getenv("SYNC_ENABLED"); v != "" {
+		switch v {
+		case "1", "true", "TRUE", "True":
+			c.Sync.Enabled = true
+		case "0", "false", "FALSE", "False":
+			c.Sync.Enabled = false
+		}
+	}
 	if v := os.Getenv("SYNC_MODE"); v != "" {
 		c.Sync.Mode = v
 	}
+}
+
+func firstEnv(keys ...string) string {
+	for _, key := range keys {
+		if v := os.Getenv(key); v != "" {
+			return v
+		}
+	}
+	return ""
 }

@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/mstrhakr/audible-plex-downloader/internal/audio"
@@ -187,13 +189,69 @@ func getConfigDir() string {
 func applyDBSettings(db database.Database, cfg *config.Config) {
 	ctx := context.Background()
 
-	if v, _ := db.GetSetting(ctx, "embed_cover"); v != "" {
-		cfg.Output.EmbedCover = v == "true"
+	// Config file/env provide defaults; persisted DB settings are user-facing
+	// runtime preferences that override defaults when present.
+	cfg.Output.Format = resolveStringSetting(ctx, db, "output_format", cfg.Output.Format)
+	cfg.Output.EmbedCover = resolveBoolSetting(ctx, db, "embed_cover", cfg.Output.EmbedCover)
+	cfg.Output.ChapterFile = resolveBoolSetting(ctx, db, "chapter_file", cfg.Output.ChapterFile)
+
+	cfg.Sync.Schedule = resolveStringSetting(ctx, db, "sync_schedule", cfg.Sync.Schedule)
+	cfg.Sync.Enabled = resolveBoolSetting(ctx, db, "sync_enabled", cfg.Sync.Enabled)
+	cfg.Sync.Mode = resolveStringSetting(ctx, db, "sync_mode", cfg.Sync.Mode)
+
+	cfg.Download.DownloadConcurrency = resolveIntSetting(ctx, db, "download_concurrency", cfg.Download.DownloadConcurrency)
+	cfg.Download.DecryptConcurrency = resolveIntSetting(ctx, db, "decrypt_concurrency", cfg.Download.DecryptConcurrency)
+	cfg.Download.ProcessConcurrency = resolveIntSetting(ctx, db, "process_concurrency", cfg.Download.ProcessConcurrency)
+
+	cfg.Log.Level = resolveStringSetting(ctx, db, "log_level", cfg.Log.Level)
+	logging.SetLevel(cfg.Log.Level)
+
+	// Seed Plex values from config/env once if DB has not been configured yet.
+	_ = resolveStringSetting(ctx, db, "plex_url", cfg.Plex.URL)
+	_ = resolveStringSetting(ctx, db, "plex_token", cfg.Plex.Token)
+}
+
+func resolveStringSetting(ctx context.Context, db database.Database, key, fallback string) string {
+	v, _ := db.GetSetting(ctx, key)
+	v = trim(v)
+	if v != "" {
+		return v
 	}
-	if v, _ := db.GetSetting(ctx, "chapter_file"); v != "" {
-		cfg.Output.ChapterFile = v == "true"
+	fallback = trim(fallback)
+	if fallback != "" {
+		_ = db.SetSetting(ctx, key, fallback)
 	}
-	if v, _ := db.GetSetting(ctx, "log_level"); v != "" {
-		logging.SetLevel(v)
+	return fallback
+}
+
+func resolveBoolSetting(ctx context.Context, db database.Database, key string, fallback bool) bool {
+	v, _ := db.GetSetting(ctx, key)
+	v = trim(v)
+	if v == "" {
+		_ = db.SetSetting(ctx, key, strconv.FormatBool(fallback))
+		return fallback
 	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return fallback
+	}
+	return b
+}
+
+func resolveIntSetting(ctx context.Context, db database.Database, key string, fallback int) int {
+	v, _ := db.GetSetting(ctx, key)
+	v = trim(v)
+	if v == "" {
+		_ = db.SetSetting(ctx, key, strconv.Itoa(fallback))
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
+}
+
+func trim(s string) string {
+	return strings.TrimSpace(s)
 }

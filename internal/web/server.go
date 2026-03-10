@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -556,7 +557,12 @@ func (s *Server) handleSettings(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	syncSchedule, _ := s.db.GetSetting(ctx, "sync_schedule")
+	syncEnabled := s.settingBool(ctx, "sync_enabled", true)
+	syncMode := s.settingString(ctx, "sync_mode", "full")
 	outputFormat, _ := s.db.GetSetting(ctx, "output_format")
+	if outputFormat == "" {
+		outputFormat = "m4b"
+	}
 	plexSectionPath, _ := s.db.GetSetting(ctx, "plex_section_path")
 
 	// Auto-fetch from Plex API if we have a section ID but no saved path.
@@ -574,6 +580,9 @@ func (s *Server) handleSettings(c *gin.Context) {
 
 	embedCover := s.settingBool(ctx, "embed_cover", true)
 	chapterFile := s.settingBool(ctx, "chapter_file", true)
+	downloadConcurrency := s.settingInt(ctx, "download_concurrency", 0)
+	decryptConcurrency := s.settingInt(ctx, "decrypt_concurrency", 0)
+	processConcurrency := s.settingInt(ctx, "process_concurrency", 0)
 
 	logLevel := logging.GetLevel()
 
@@ -583,11 +592,16 @@ func (s *Server) handleSettings(c *gin.Context) {
 
 	c.HTML(http.StatusOK, "settings.html", gin.H{
 		"SyncSchedule":         syncSchedule,
+		"SyncEnabled":          syncEnabled,
+		"SyncMode":             syncMode,
 		"OutputFormat":         outputFormat,
 		"NativeAudiobooksPath": hostPath,
 		"PlexSectionPath":      plexSectionPath,
 		"EmbedCover":           embedCover,
 		"ChapterFile":          chapterFile,
+		"DownloadConcurrency":  downloadConcurrency,
+		"DecryptConcurrency":   decryptConcurrency,
+		"ProcessConcurrency":   processConcurrency,
 		"LogLevel":             logLevel,
 		"Devices":              devices,
 		"Page":                 "settings",
@@ -605,6 +619,28 @@ func (s *Server) settingBool(ctx context.Context, key string, defaultVal bool) b
 		return defaultVal
 	}
 	return v == "true" || v == "1"
+}
+
+func (s *Server) settingString(ctx context.Context, key, defaultVal string) string {
+	v, _ := s.db.GetSetting(ctx, key)
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return defaultVal
+	}
+	return v
+}
+
+func (s *Server) settingInt(ctx context.Context, key string, defaultVal int) int {
+	v, _ := s.db.GetSetting(ctx, key)
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return defaultVal
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return defaultVal
+	}
+	return n
 }
 
 // detectHostMountPath tries to determine the host-side bind mount source for
@@ -953,11 +989,28 @@ func (s *Server) handleSSE(c *gin.Context) {
 func (s *Server) handleSaveSettings(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	if schedule := c.PostForm("sync_schedule"); schedule != "" {
+	if _, ok := c.GetPostForm("sync_schedule_sent"); ok {
+		schedule := strings.TrimSpace(c.PostForm("sync_schedule"))
 		_ = s.db.SetSetting(ctx, "sync_schedule", schedule)
+	}
+	if _, ok := c.GetPostForm("sync_enabled_sent"); ok {
+		enabled := c.PostForm("sync_enabled") == "true"
+		_ = s.db.SetSetting(ctx, "sync_enabled", strconv.FormatBool(enabled))
+	}
+	if mode := strings.TrimSpace(c.PostForm("sync_mode")); mode != "" {
+		_ = s.db.SetSetting(ctx, "sync_mode", mode)
 	}
 	if format := c.PostForm("output_format"); format != "" {
 		_ = s.db.SetSetting(ctx, "output_format", format)
+	}
+	if _, ok := c.GetPostForm("download_concurrency"); ok {
+		_ = s.db.SetSetting(ctx, "download_concurrency", strings.TrimSpace(c.PostForm("download_concurrency")))
+	}
+	if _, ok := c.GetPostForm("decrypt_concurrency"); ok {
+		_ = s.db.SetSetting(ctx, "decrypt_concurrency", strings.TrimSpace(c.PostForm("decrypt_concurrency")))
+	}
+	if _, ok := c.GetPostForm("process_concurrency"); ok {
+		_ = s.db.SetSetting(ctx, "process_concurrency", strings.TrimSpace(c.PostForm("process_concurrency")))
 	}
 
 	// Boolean toggles: the hidden *_sent field tells us the field was present
