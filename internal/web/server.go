@@ -909,12 +909,14 @@ func (s *Server) handleDBBackup(c *gin.Context) {
 func (s *Server) handleFactoryReset(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	// Pause downloads to prevent pipeline activity during reset.
-	s.downloads.Pause("factory reset in progress")
+	// Fully stop the pipeline — cancel in-flight downloads/decrypts and wait for workers to exit.
+	webLog.Warn().Msg("factory reset: stopping all pipeline workers")
+	s.downloads.StopAndWait()
 
 	if err := s.db.Reset(ctx); err != nil {
 		webLog.Error().Err(err).Msg("factory reset failed")
-		s.downloads.Resume()
+		// Restart the pipeline even on error so the app isn't stuck.
+		s.downloads.Start(context.Background())
 		if c.GetHeader("HX-Request") == "true" {
 			c.HTML(http.StatusOK, "settings_saved.html", gin.H{"Message": "Reset failed: " + err.Error()})
 			return
@@ -928,8 +930,9 @@ func (s *Server) handleFactoryReset(c *gin.Context) {
 		webLog.Error().Err(err).Msg("post-reset migration failed")
 	}
 
-	s.downloads.Resume()
-	webLog.Info().Msg("factory reset complete — database wiped")
+	// Restart the download pipeline with a fresh context.
+	s.downloads.Start(context.Background())
+	webLog.Info().Msg("factory reset complete — database wiped, pipeline restarted")
 
 	if c.GetHeader("HX-Request") == "true" {
 		c.Header("HX-Redirect", "/settings")

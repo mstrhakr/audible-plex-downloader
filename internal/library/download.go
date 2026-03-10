@@ -47,9 +47,11 @@ type DownloadManager struct {
 	decryptQueue chan *pipelineItem
 	processQueue chan *pipelineItem
 
-	mu      sync.Mutex
-	running bool
-	stopCh  chan struct{}
+	mu       sync.Mutex
+	running  bool
+	stopCh   chan struct{}
+	cancelFn context.CancelFunc // cancels the context shared by all workers
+	workerWg sync.WaitGroup     // tracks active worker goroutines
 
 	pauseMu     sync.RWMutex
 	paused      bool
@@ -308,21 +310,39 @@ func (dm *DownloadManager) Start(ctx context.Context) {
 	}
 	dm.running = true
 	dm.stopCh = make(chan struct{})
+	dm.decryptQueue = make(chan *pipelineItem, 100)
+	dm.processQueue = make(chan *pipelineItem, 100)
+
+	// Derive a cancellable context so StopAndWait can interrupt in-flight work.
+	workerCtx, cancel := context.WithCancel(ctx)
+	dm.cancelFn = cancel
 	dm.mu.Unlock()
 
-	dm.reconcileStatuses(ctx)
-	dm.reconcileLibraryFiles(ctx)
-	dm.cleanupOrphanedFiles(ctx)
+	dm.reconcileStatuses(workerCtx)
+	dm.reconcileLibraryFiles(workerCtx)
+	dm.cleanupOrphanedFiles(workerCtx)
 
 	// Start worker pools for each pipeline stage
 	for i := 0; i < dm.downloadConcurrency; i++ {
-		go dm.downloadWorker(ctx, i+1)
+		dm.workerWg.Add(1)
+		go func(id int) {
+			defer dm.workerWg.Done()
+			dm.downloadWorker(workerCtx, id)
+		}(i + 1)
 	}
 	for i := 0; i < dm.decryptConcurrency; i++ {
-		go dm.decryptWorker(ctx, i+1)
+		dm.workerWg.Add(1)
+		go func(id int) {
+			defer dm.workerWg.Done()
+			dm.decryptWorker(workerCtx, id)
+		}(i + 1)
 	}
 	for i := 0; i < dm.processConcurrency; i++ {
-		go dm.processWorker(ctx, i+1)
+		dm.workerWg.Add(1)
+		go func(id int) {
+			defer dm.workerWg.Done()
+			dm.processWorker(workerCtx, id)
+		}(i + 1)
 	}
 
 	dlLog.Info().
@@ -425,14 +445,24 @@ func (dm *DownloadManager) reconcileStatuses(ctx context.Context) {
 	}
 }
 
-// Stop stops the download manager.
+// Stop signals workers to stop (non-blocking).
 func (dm *DownloadManager) Stop() {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
 	if dm.running {
 		close(dm.stopCh)
+		if dm.cancelFn != nil {
+			dm.cancelFn()
+		}
 		dm.running = false
 	}
+}
+
+// StopAndWait cancels all in-flight work and blocks until every worker exits.
+func (dm *DownloadManager) StopAndWait() {
+	dm.Stop()
+	dm.workerWg.Wait()
+	dlLog.Info().Msg("all pipeline workers stopped")
 }
 
 // downloadWorker polls the database for pending downloads and processes them.
