@@ -68,6 +68,13 @@ type QueueState struct {
 	PausedAt time.Time `json:"paused_at,omitempty"`
 }
 
+// SetEmbedCover updates the embed cover setting at runtime.
+func (dm *DownloadManager) SetEmbedCover(v bool) {
+	dm.mu.Lock()
+	dm.embedCover = v
+	dm.mu.Unlock()
+}
+
 // pipelineItem represents work moving through the pipeline stages.
 type pipelineItem struct {
 	BookID        int64
@@ -569,7 +576,10 @@ func (dm *DownloadManager) decryptBook(ctx context.Context, item *pipelineItem, 
 	meta := enriched.ToAudioMetadata()
 
 	coverPath := ""
-	if dm.embedCover {
+	dm.mu.Lock()
+	wantCover := dm.embedCover
+	dm.mu.Unlock()
+	if wantCover {
 		downloaded, err := dm.downloadCoverToTemp(ctx, enriched.CoverURL(), asin)
 		if err != nil {
 			dlLog.Warn().Err(err).Str("asin", asin).Msg("cover prefetch failed; continuing without embedded cover")

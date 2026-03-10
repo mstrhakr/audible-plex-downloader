@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bufio"
 	"context"
 	"embed"
 	"encoding/json"
@@ -547,22 +548,73 @@ func (s *Server) handleSettings(c *gin.Context) {
 
 	syncSchedule, _ := s.db.GetSetting(ctx, "sync_schedule")
 	outputFormat, _ := s.db.GetSetting(ctx, "output_format")
-	nativeAudiobooksPath, _ := s.db.GetSetting(ctx, "native_audiobooks_path")
 	plexSectionPath, _ := s.db.GetSetting(ctx, "plex_section_path")
+
+	embedCover := s.settingBool(ctx, "embed_cover", true)
+	chapterFile := s.settingBool(ctx, "chapter_file", true)
+
+	logLevel := logging.GetLevel()
+
+	hostPath := detectHostMountPath(s.audiobooksPath)
 
 	devices, _ := s.db.ListDevices(ctx)
 
 	c.HTML(http.StatusOK, "settings.html", gin.H{
 		"SyncSchedule":         syncSchedule,
 		"OutputFormat":         outputFormat,
-		"NativeAudiobooksPath": nativeAudiobooksPath,
+		"NativeAudiobooksPath": hostPath,
 		"PlexSectionPath":      plexSectionPath,
+		"EmbedCover":           embedCover,
+		"ChapterFile":          chapterFile,
+		"LogLevel":             logLevel,
 		"Devices":              devices,
 		"Page":                 "settings",
 		"AudiobooksPath":       s.audiobooksPath,
 		"DownloadsPath":        s.downloadsPath,
 		"ConfigPath":           s.configPath,
 	})
+}
+
+// settingBool reads a boolean setting from DB, returning the given default
+// when the key is absent (empty string).
+func (s *Server) settingBool(ctx context.Context, key string, defaultVal bool) bool {
+	v, _ := s.db.GetSetting(ctx, key)
+	if v == "" {
+		return defaultVal
+	}
+	return v == "true" || v == "1"
+}
+
+// detectHostMountPath tries to determine the host-side bind mount source for
+// a container path by parsing /proc/self/mountinfo. Returns "" when the host
+// path cannot be determined (e.g. running natively outside Docker).
+func detectHostMountPath(containerPath string) string {
+	// If not running in a container, there is no host vs container distinction.
+	if _, err := os.Stat("/.dockerenv"); os.IsNotExist(err) {
+		return ""
+	}
+
+	f, err := os.Open("/proc/self/mountinfo")
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	// mountinfo format:  mount_id parent_id major:minor root mount_point ...
+	// For bind mounts, "root" (field 3, 0-indexed) is the host path on the
+	// underlying filesystem, and "mount_point" (field 4) is the container path.
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 5 {
+			continue
+		}
+		mountPoint := fields[4]
+		if mountPoint == containerPath {
+			return fields[3]
+		}
+	}
+	return ""
 }
 
 // handleSyncTrigger triggers a manual library sync.
@@ -806,9 +858,24 @@ func (s *Server) handleSaveSettings(c *gin.Context) {
 	if format := c.PostForm("output_format"); format != "" {
 		_ = s.db.SetSetting(ctx, "output_format", format)
 	}
-	// native_audiobooks_path is optional; save even if empty (user clearing it)
-	if nativePath, ok := c.GetPostForm("native_audiobooks_path"); ok {
-		_ = s.db.SetSetting(ctx, "native_audiobooks_path", nativePath)
+
+	// Boolean toggles: the hidden *_sent field tells us the field was present
+	// in the form, so unchecked = false rather than absent.
+	if _, ok := c.GetPostForm("embed_cover_sent"); ok {
+		v := c.PostForm("embed_cover") == "true"
+		_ = s.db.SetSetting(ctx, "embed_cover", fmt.Sprintf("%t", v))
+		s.downloads.SetEmbedCover(v)
+		s.organizer.SetEmbedCover(v)
+	}
+	if _, ok := c.GetPostForm("chapter_file_sent"); ok {
+		v := c.PostForm("chapter_file") == "true"
+		_ = s.db.SetSetting(ctx, "chapter_file", fmt.Sprintf("%t", v))
+		s.organizer.SetChapterFile(v)
+	}
+
+	if level := c.PostForm("log_level"); level != "" {
+		_ = s.db.SetSetting(ctx, "log_level", level)
+		logging.SetLevel(level)
 	}
 
 	if c.GetHeader("HX-Request") == "true" {

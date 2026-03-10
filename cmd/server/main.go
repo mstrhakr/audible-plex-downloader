@@ -57,6 +57,9 @@ func main() {
 	}
 	log.Info().Msg("database migrations complete")
 
+	// Apply runtime-configurable settings stored in DB (override config file defaults).
+	applyDBSettings(db, cfg)
+
 	// Ensure directories exist
 	for _, dir := range []string{cfg.Paths.Audiobooks, cfg.Paths.Downloads, cfg.Paths.Config} {
 		if err := os.MkdirAll(dir, 0750); err != nil {
@@ -174,4 +177,20 @@ func getConfigDir() string {
 		return v
 	}
 	return "/config"
+}
+
+// applyDBSettings reads runtime-configurable values that the user may have
+// changed via the web UI and applies them so they survive restarts.
+func applyDBSettings(db database.Database, cfg *config.Config) {
+	ctx := context.Background()
+
+	if v, _ := db.GetSetting(ctx, "embed_cover"); v != "" {
+		cfg.Output.EmbedCover = v == "true"
+	}
+	if v, _ := db.GetSetting(ctx, "chapter_file"); v != "" {
+		cfg.Output.ChapterFile = v == "true"
+	}
+	if v, _ := db.GetSetting(ctx, "log_level"); v != "" {
+		logging.SetLevel(v)
+	}
 }

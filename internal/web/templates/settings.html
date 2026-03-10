@@ -46,18 +46,44 @@
             </div>
 
             <div class="form-group">
-                <label for="native_audiobooks_path">Host Audiobooks Path</label>
-                <input type="text" id="native_audiobooks_path" name="native_audiobooks_path" value="{{.NativeAudiobooksPath}}" placeholder="/mnt/media/audiobooks">
-                <small>The path to your audiobooks directory on the host filesystem (for reference only)</small>
-            </div>
-
-            <div class="form-group">
                 <label for="output_format">Output Format</label>
                 <select id="output_format" name="output_format">
                     <option value="m4b" {{if eq .OutputFormat "m4b"}}selected{{end}}>M4B (Single File)</option>
                     <option value="mp3" {{if eq .OutputFormat "mp3"}}selected{{end}}>MP3 (Chapter Split)</option>
                 </select>
                 <small>Choose how to organize your audiobook files</small>
+            </div>
+
+            <div class="form-group">
+                <label for="embed_cover">Embed Cover Art</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="embed_cover" name="embed_cover" value="true" {{if .EmbedCover}}checked{{end}}>
+                    <span class="toggle-slider"></span>
+                </label>
+                <input type="hidden" name="embed_cover_sent" value="1">
+                <small>Download and embed cover art into audiobook files</small>
+            </div>
+
+            <div class="form-group">
+                <label for="chapter_file">Generate Chapter Files</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="chapter_file" name="chapter_file" value="true" {{if .ChapterFile}}checked{{end}}>
+                    <span class="toggle-slider"></span>
+                </label>
+                <input type="hidden" name="chapter_file_sent" value="1">
+                <small>Create Plex-compatible <code>.chapters.txt</code> files alongside audiobooks</small>
+            </div>
+
+            <div class="form-group">
+                <label for="log_level">Log Level</label>
+                <select id="log_level" name="log_level">
+                    <option value="trace" {{if eq .LogLevel "trace"}}selected{{end}}>Trace</option>
+                    <option value="debug" {{if eq .LogLevel "debug"}}selected{{end}}>Debug</option>
+                    <option value="info" {{if eq .LogLevel "info"}}selected{{end}}>Info</option>
+                    <option value="warn" {{if eq .LogLevel "warn"}}selected{{end}}>Warn</option>
+                    <option value="error" {{if eq .LogLevel "error"}}selected{{end}}>Error</option>
+                </select>
+                <small>Minimum severity level for log output. Changes take effect immediately.</small>
             </div>
 
             <button type="submit" class="btn btn-primary">Save Settings</button>
@@ -265,6 +291,52 @@
 
     .data-table tbody tr:hover {
         background: rgba(0,217,255,0.05);
+    }
+
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 50px;
+        height: 26px;
+        margin: 0;
+    }
+
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255,255,255,0.15);
+        border-radius: 26px;
+        transition: 0.3s;
+    }
+
+    .toggle-slider::before {
+        content: "";
+        position: absolute;
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background: #fff;
+        border-radius: 50%;
+        transition: 0.3s;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+        background: #00d9ff;
+    }
+
+    .toggle-switch input:checked + .toggle-slider::before {
+        transform: translateX(24px);
     }
 </style>
 

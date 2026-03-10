@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mstrhakr/audible-plex-downloader/internal/audio"
@@ -26,6 +27,7 @@ type PlexOrganizer struct {
 	libraryRoot string
 	embedCover  bool
 	chapterFile bool
+	mu          sync.RWMutex
 }
 
 // NewPlexOrganizer creates a new Plex file organizer.
@@ -37,6 +39,20 @@ func NewPlexOrganizer(db database.Database, ffmpeg *audio.FFmpeg, libraryRoot st
 		embedCover:  embedCover,
 		chapterFile: chapterFile,
 	}
+}
+
+// SetEmbedCover updates the embed cover setting at runtime.
+func (o *PlexOrganizer) SetEmbedCover(v bool) {
+	o.mu.Lock()
+	o.embedCover = v
+	o.mu.Unlock()
+}
+
+// SetChapterFile updates the chapter file setting at runtime.
+func (o *PlexOrganizer) SetChapterFile(v bool) {
+	o.mu.Lock()
+	o.chapterFile = v
+	o.mu.Unlock()
 }
 
 // Organize takes a decrypted audiobook file and moves it into the Plex library structure.
@@ -103,7 +119,10 @@ func (o *PlexOrganizer) OrganizeWithProgress(ctx context.Context, book *database
 	}
 
 	// Generate chapters file
-	if o.chapterFile {
+	o.mu.RLock()
+	wantChapters := o.chapterFile
+	o.mu.RUnlock()
+	if wantChapters {
 		chapters := enriched.ChapterMarks()
 		if len(chapters) > 0 {
 			chapterPath := filepath.Join(bookDir, sanitizePath(filenameBase)+".chapters.txt")

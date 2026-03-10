@@ -17,6 +17,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -33,19 +34,40 @@ type Logger struct {
 	fields    map[string]string
 }
 
-var globalLevel = zerolog.InfoLevel
-var useJSONOutput = true
+var (
+	globalLevel   = zerolog.InfoLevel
+	useJSONOutput = true
+	levelMu       sync.RWMutex
+)
 
 // Init configures the global logging defaults. Call once at startup.
 func Init(level string, jsonOutput bool) {
+	levelMu.Lock()
 	globalLevel = parseLevel(level)
 	useJSONOutput = jsonOutput
+	levelMu.Unlock()
 
 	zerolog.SetGlobalLevel(globalLevel)
 	zerolog.TimeFieldFormat = time.RFC3339
 
 	zl := zerolog.New(outputWriter()).With().Timestamp().Logger().Level(globalLevel)
 	setGlobalLogger(zl)
+}
+
+// SetLevel changes the log level at runtime. Safe for concurrent use.
+func SetLevel(level string) {
+	levelMu.Lock()
+	globalLevel = parseLevel(level)
+	levelMu.Unlock()
+
+	zerolog.SetGlobalLevel(globalLevel)
+}
+
+// GetLevel returns the current log level name.
+func GetLevel() string {
+	levelMu.RLock()
+	defer levelMu.RUnlock()
+	return globalLevel.String()
 }
 
 func setGlobalLogger(zl zerolog.Logger) {
@@ -63,6 +85,10 @@ func outputWriter() io.Writer {
 }
 
 func (l *Logger) build() zerolog.Logger {
+	levelMu.RLock()
+	level := globalLevel
+	levelMu.RUnlock()
+
 	ctx := zerolog.New(outputWriter()).With().Timestamp()
 	if l.component != "" {
 		ctx = ctx.Str("component", l.component)
@@ -70,7 +96,7 @@ func (l *Logger) build() zerolog.Logger {
 	for k, v := range l.fields {
 		ctx = ctx.Str(k, v)
 	}
-	return ctx.Logger().Level(globalLevel)
+	return ctx.Logger().Level(level)
 }
 
 // Component creates a logger scoped to a named component.
