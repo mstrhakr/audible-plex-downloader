@@ -92,6 +92,9 @@ func NewServer(
 		configPath:     configPath,
 	}
 
+	// Wire up Plex callbacks so sync can query/trigger Plex without importing web.
+	syncSvc.SetPlexCallbacks(s.plexQueryForSync, s.plexTriggerScanForSync)
+
 	s.setupTemplates()
 	s.setupRoutes()
 
@@ -237,6 +240,9 @@ func (s *Server) setupRoutes() {
 	api := s.router.Group("/api")
 	{
 		api.POST("/sync", s.handleSyncTrigger)
+		api.POST("/sync/quick", s.handleQuickSyncTrigger)
+		api.POST("/sync/full", s.handleFullSyncTrigger)
+		api.POST("/sync/retry", s.handleSyncRetry)
 		api.GET("/sync/status", s.handleSyncStatus)
 		api.GET("/dashboard/summary", s.handleDashboardSummary)
 		api.GET("/dashboard/downloads", s.handleDashboardDownloads)
@@ -620,12 +626,39 @@ func detectHostMountPath(containerPath string) string {
 	return ""
 }
 
-// handleSyncTrigger triggers a manual library sync.
+// handleSyncTrigger triggers a full sync (legacy endpoint, backward compatible).
 func (s *Server) handleSyncTrigger(c *gin.Context) {
+	s.triggerSync(c, library.SyncModeFull)
+}
+
+// handleQuickSyncTrigger triggers a quick sync (Audible library update only).
+func (s *Server) handleQuickSyncTrigger(c *gin.Context) {
+	s.triggerSync(c, library.SyncModeQuick)
+}
+
+// handleFullSyncTrigger triggers a full sync (Audible + filesystem + Plex).
+func (s *Server) handleFullSyncTrigger(c *gin.Context) {
+	s.triggerSync(c, library.SyncModeFull)
+}
+
+// handleSyncRetry re-runs the last sync with the same mode.
+func (s *Server) handleSyncRetry(c *gin.Context) {
+	mode := s.sync.LastMode()
+	if mode == "" {
+		mode = library.SyncModeFull
+	}
+	s.triggerSync(c, mode)
+}
+
+func (s *Server) triggerSync(c *gin.Context, mode library.SyncMode) {
 	if !s.audible.IsAuthenticated() {
 		msg := "Not authenticated — please sign in on the Auth page first."
 		if c.GetHeader("HX-Request") == "true" {
-			c.HTML(http.StatusOK, "sync_status.html", gin.H{"Message": msg, "Status": "failed"})
+			c.HTML(http.StatusOK, "sync_status.html", s.syncStatusData(library.SyncProgress{
+				Status:  "failed",
+				Message: msg,
+				Error:   msg,
+			}))
 			return
 		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": msg})
@@ -635,14 +668,7 @@ func (s *Server) handleSyncTrigger(c *gin.Context) {
 	progress := s.sync.GetProgress()
 	if progress.Running {
 		if c.GetHeader("HX-Request") == "true" {
-			c.HTML(http.StatusOK, "sync_status.html", gin.H{
-				"Running":      true,
-				"BooksFound":   progress.BooksFound,
-				"BooksScanned": progress.BooksScanned,
-				"BooksAdded":   progress.BooksAdded,
-				"Percent":      progress.Percent(),
-				"Message":      "Sync already running",
-			})
+			c.HTML(http.StatusOK, "sync_status.html", s.syncStatusData(progress))
 			return
 		}
 		c.JSON(http.StatusConflict, gin.H{"error": "sync already running"})
@@ -650,66 +676,86 @@ func (s *Server) handleSyncTrigger(c *gin.Context) {
 	}
 
 	go func() {
-		added, err := s.sync.Sync(context.Background())
+		var added int
+		var err error
+		switch mode {
+		case library.SyncModeQuick:
+			added, err = s.sync.QuickSync(context.Background())
+		default:
+			added, err = s.sync.FullSync(context.Background())
+		}
 		if err != nil {
 			if errors.Is(err, library.ErrSyncInProgress) {
 				return
 			}
-			webLog.Error().Err(err).Msg("manual sync failed")
+			webLog.Error().Err(err).Str("mode", string(mode)).Msg("manual sync failed")
 			return
 		}
-		webLog.Info().Int("added", added).Msg("manual sync complete")
+		webLog.Info().Int("added", added).Str("mode", string(mode)).Msg("manual sync complete")
 	}()
 
 	if c.GetHeader("HX-Request") == "true" {
 		started := s.sync.GetProgress()
-		c.HTML(http.StatusOK, "sync_status.html", gin.H{
-			"Running":      true,
-			"BooksFound":   started.BooksFound,
-			"BooksScanned": started.BooksScanned,
-			"BooksAdded":   started.BooksAdded,
-			"Percent":      started.Percent(),
-			"Message":      "Sync started",
-		})
+		c.HTML(http.StatusOK, "sync_status.html", s.syncStatusData(started))
 		return
 	}
-	c.JSON(http.StatusAccepted, gin.H{"status": "started"})
+	c.JSON(http.StatusAccepted, gin.H{"status": "started", "mode": string(mode)})
+}
+
+// syncStatusData converts a SyncProgress into template data.
+func (s *Server) syncStatusData(progress library.SyncProgress) gin.H {
+	data := gin.H{
+		"Running":      progress.Running,
+		"Mode":         string(progress.Mode),
+		"Status":       progress.Status,
+		"Message":      progress.Message,
+		"Error":        progress.Error,
+		"BooksFound":   progress.BooksFound,
+		"BooksScanned": progress.BooksScanned,
+		"BooksAdded":   progress.BooksAdded,
+		"FilesFound":   progress.FilesFound,
+		"PlexItems":    progress.PlexItems,
+		"PlexScanned":  progress.PlexScanned,
+		"Percent":      progress.Percent(),
+		"Phases":       progress.Phases,
+		"CurrentPhase": string(progress.CurrentPhase),
+	}
+	return data
 }
 
 // handleSyncStatus renders sync progress for HTMX polling.
 func (s *Server) handleSyncStatus(c *gin.Context) {
 	progress := s.sync.GetProgress()
+	c.HTML(http.StatusOK, "sync_status.html", s.syncStatusData(progress))
+}
 
-	if progress.Running {
-		c.HTML(http.StatusOK, "sync_status.html", gin.H{
-			"Running":      true,
-			"BooksFound":   progress.BooksFound,
-			"BooksScanned": progress.BooksScanned,
-			"BooksAdded":   progress.BooksAdded,
-			"Percent":      progress.Percent(),
-			"Message":      "Sync in progress",
-		})
-		return
+// plexQueryForSync is the callback used by SyncService to query Plex item count.
+func (s *Server) plexQueryForSync(ctx context.Context) (int, error) {
+	plexURL, plexToken := s.getPlexSettings(ctx)
+	if plexURL == "" || plexToken == "" {
+		return 0, fmt.Errorf("Plex not configured")
 	}
-
-	if progress.Status == "failed" {
-		c.HTML(http.StatusOK, "sync_status.html", gin.H{
-			"Status":  "failed",
-			"Message": "Sync failed: " + progress.Error,
-		})
-		return
+	sectionID, _ := s.db.GetSetting(ctx, "plex_section_id")
+	sectionID = strings.TrimSpace(sectionID)
+	if sectionID == "" {
+		return 0, fmt.Errorf("Plex library section not configured")
 	}
+	return s.plexSectionItemCount(ctx, plexURL, plexToken, sectionID)
+}
 
-	if progress.Status == "complete" {
-		msg := fmt.Sprintf("Sync complete! %d new books added.", progress.BooksAdded)
-		c.HTML(http.StatusOK, "sync_status.html", gin.H{
-			"Status":  "complete",
-			"Message": msg,
-		})
-		return
+// plexTriggerScanForSync is the callback used by SyncService to trigger a full Plex scan.
+func (s *Server) plexTriggerScanForSync(ctx context.Context) error {
+	plexURL, plexToken := s.getPlexSettings(ctx)
+	if plexURL == "" || plexToken == "" {
+		return fmt.Errorf("Plex not configured")
 	}
-
-	c.HTML(http.StatusOK, "sync_status.html", gin.H{})
+	sectionID, _ := s.db.GetSetting(ctx, "plex_section_id")
+	sectionID = strings.TrimSpace(sectionID)
+	if sectionID == "" {
+		return fmt.Errorf("Plex library section not configured")
+	}
+	// Empty path triggers a full section scan
+	return s.plexTriggerSectionScan(ctx, plexURL, plexToken, sectionID, "")
 }
 
 // handleQueueAll queues all new books for download.

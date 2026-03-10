@@ -17,15 +17,28 @@ type Scheduler struct {
 	syncSvc   *library.SyncService
 	dlMgr     *library.DownloadManager
 	syncEntry cron.EntryID
+	syncMode  library.SyncMode
 }
 
 // New creates a new scheduler.
 func New(syncSvc *library.SyncService, dlMgr *library.DownloadManager) *Scheduler {
 	return &Scheduler{
-		cron:    cron.New(),
-		syncSvc: syncSvc,
-		dlMgr:   dlMgr,
+		cron:     cron.New(),
+		syncSvc:  syncSvc,
+		dlMgr:    dlMgr,
+		syncMode: library.SyncModeFull, // default: full sync for backward compatibility
 	}
+}
+
+// SetSyncMode sets the mode used for scheduled syncs (quick or full).
+func (s *Scheduler) SetSyncMode(mode string) {
+	switch mode {
+	case "quick":
+		s.syncMode = library.SyncModeQuick
+	default:
+		s.syncMode = library.SyncModeFull
+	}
+	schedLog.Info().Str("mode", string(s.syncMode)).Msg("scheduled sync mode set")
 }
 
 // SetSyncSchedule configures the library sync cron schedule.
@@ -57,19 +70,26 @@ func (s *Scheduler) SetSyncSchedule(schedule string) error {
 }
 
 func (s *Scheduler) runSync() {
-	schedLog.Info().Msg("scheduled sync starting")
+	schedLog.Info().Str("mode", string(s.syncMode)).Msg("scheduled sync starting")
 	ctx := context.Background()
 
-	added, err := s.syncSvc.Sync(ctx)
+	var added int
+	var err error
+	switch s.syncMode {
+	case library.SyncModeQuick:
+		added, err = s.syncSvc.QuickSync(ctx)
+	default:
+		added, err = s.syncSvc.FullSync(ctx)
+	}
 	if err != nil {
 		if errors.Is(err, library.ErrSyncInProgress) {
 			schedLog.Info().Msg("sync already running, skipping scheduled run")
 			return
 		}
-		schedLog.Error().Err(err).Msg("scheduled sync failed")
+		schedLog.Error().Err(err).Str("mode", string(s.syncMode)).Msg("scheduled sync failed")
 		return
 	}
-	schedLog.Info().Int("added", added).Msg("scheduled sync complete")
+	schedLog.Info().Int("added", added).Str("mode", string(s.syncMode)).Msg("scheduled sync complete")
 
 	if added > 0 {
 		// Queue new books in batches (2x download workers) to avoid overwhelming the system

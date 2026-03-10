@@ -55,6 +55,7 @@ type DownloadConfig struct {
 type SyncConfig struct {
 	Schedule string `yaml:"schedule"`
 	Enabled  bool   `yaml:"enabled"`
+	Mode     string `yaml:"mode"` // "quick" or "full" — default "full" for scheduled syncs
 }
 
 type PlexConfig struct {
@@ -85,6 +86,7 @@ func DefaultConfig() *Config {
 		Sync: SyncConfig{
 			Schedule: "0 */6 * * *",
 			Enabled:  true,
+			Mode:     "full",
 		},
 		Log: LogConfig{
 			Level: "info",
@@ -166,5 +168,8 @@ func (c *Config) LoadFromEnv() {
 	}
 	if v := os.Getenv("SYNC_SCHEDULE"); v != "" {
 		c.Sync.Schedule = v
+	}
+	if v := os.Getenv("SYNC_MODE"); v != "" {
+		c.Sync.Mode = v
 	}
 }

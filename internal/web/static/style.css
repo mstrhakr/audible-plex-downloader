@@ -309,10 +309,81 @@ h2 { margin: 1.5rem 0 0.75rem; font-size: 1.2rem; color: var(--text-muted); }
 .status-msg { margin-left: 0.75rem; font-size: 0.9rem; }
 .status-msg.success { color: var(--success); }
 .status-msg.error { color: var(--error); }
+.status-msg.warning { color: var(--warning, #e6a817); }
+.status-msg.sync-running { font-weight: 600; }
 .sync-progress {
     margin-top: 0.35rem;
     max-width: 360px;
 }
+
+/* Button group */
+.btn-group {
+    display: inline-flex;
+    gap: 0.35rem;
+}
+
+/* Sync status container */
+.sync-status-container {
+    display: inline-block;
+    margin-left: 0.5rem;
+    font-size: 0.9rem;
+}
+.sync-header {
+    margin-bottom: 0.25rem;
+}
+.sync-detail {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 0.15rem;
+}
+
+/* Sync phase indicators */
+.sync-phases {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.35rem 0;
+}
+.sync-phase {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius);
+    font-size: 0.8rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+}
+.sync-phase.complete { border-color: var(--success); }
+.sync-phase.complete .phase-icon { color: var(--success); }
+.sync-phase.failed { border-color: var(--error); }
+.sync-phase.failed .phase-icon { color: var(--error); }
+.sync-phase.running { border-color: var(--primary); }
+.sync-phase.running .phase-icon { color: var(--primary); animation: pulse 1s ease-in-out infinite; }
+.sync-phase.skipped { opacity: 0.5; }
+.phase-label { font-weight: 500; }
+.phase-detail { color: var(--text-muted); font-size: 0.75rem; }
+.phase-detail.error { color: var(--error); }
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* Small buttons for inline actions */
+.btn-sm {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.8rem;
+}
+.btn-warning {
+    background: var(--warning, #e6a817);
+    color: #000;
+    border: none;
+    padding: 0.4rem 1rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+.btn-warning:hover { opacity: 0.9; }
 
 /* Responsive */
 @media (max-width: 768px) {

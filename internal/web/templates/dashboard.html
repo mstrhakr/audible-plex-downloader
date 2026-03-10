@@ -2,16 +2,21 @@
 <h1>Dashboard</h1>
 
 <div class="actions-bar">
-    <button hx-post="/api/sync" hx-target="#sync-status" hx-swap="innerHTML" class="btn btn-primary">
-        Sync Library
-    </button>
+    <div class="btn-group">
+        <button hx-post="/api/sync/quick" hx-target="#sync-status" hx-swap="innerHTML" class="btn btn-secondary" title="Update Audible library only — fast check for new books">
+            Quick Sync
+        </button>
+        <button hx-post="/api/sync/full" hx-target="#sync-status" hx-swap="innerHTML" class="btn btn-primary" title="Full sync: Audible + filesystem scan + Plex library check">
+            Full Sync
+        </button>
+    </div>
     <button hx-post="/api/downloads/queue-all" hx-swap="none" class="btn btn-secondary">
         Queue All New
     </button>
     <button hx-post="/api/downloads/retry-all" hx-target="#sync-status" hx-swap="innerHTML" class="btn btn-danger">
         Retry All Failed
     </button>
-    <span id="sync-status" hx-get="/api/sync/status" hx-trigger="load, every 5s" hx-swap="innerHTML"></span>
+    <span id="sync-status" hx-get="/api/sync/status" hx-trigger="load, every 1s" hx-swap="innerHTML"></span>
 </div>
 
 <div id="dashboard-summary" hx-get="/api/dashboard/summary" hx-trigger="load, every 12s queue:last" hx-swap="innerHTML">

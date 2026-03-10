@@ -113,6 +113,9 @@ func main() {
 
 	// Start scheduler
 	sched := scheduler.New(syncSvc, dlMgr)
+	if cfg.Sync.Mode != "" {
+		sched.SetSyncMode(cfg.Sync.Mode)
+	}
 	if cfg.Sync.Enabled && cfg.Sync.Schedule != "" {
 		if err := sched.SetSyncSchedule(cfg.Sync.Schedule); err != nil {
 			log.Error().Err(err).Str("schedule", cfg.Sync.Schedule).Msg("invalid sync schedule")
