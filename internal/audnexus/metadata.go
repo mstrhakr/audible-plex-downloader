@@ -55,6 +55,14 @@ func (e *EnrichedBook) Title() string {
 	return e.Book.Title
 }
 
+// Subtitle returns the subtitle if available.
+func (e *EnrichedBook) Subtitle() string {
+	if e.AudnexusBook != nil {
+		return e.AudnexusBook.Subtitle
+	}
+	return ""
+}
+
 // Region returns the region code (e.g., "us", "uk").
 func (e *EnrichedBook) Region() string {
 	if e.AudnexusBook != nil && e.AudnexusBook.Region != "" {
