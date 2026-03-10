@@ -12,6 +12,26 @@ import (
 
 var unsafePathChars = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]`)
 
+// supportedAudioExtensions lists all audio file formats that can be discovered
+var supportedAudioExtensions = map[string]bool{
+	"m4b":  true, // Apple audiobook format (primary)
+	"m4a":  true, // Apple audio format
+	"mp3":  true, // MPEG audio
+	"aax":  true, // Audible format v2/v3
+	"aaxc": true, // Audible format v4
+	"flac": true, // Free Lossless Audio Codec
+	"ogg":  true, // Ogg Vorbis
+	"wma":  true, // Windows Media Audio
+	"aac":  true, // Advanced Audio Coding
+	"opus": true, // Opus audio
+}
+
+// isAudioFile checks if a filename has a supported audio extension
+func isAudioFile(filename string) bool {
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(filename), "."))
+	return supportedAudioExtensions[ext]
+}
+
 // reconcileExistingAudiobookFiles scans the expected library layout and reconciles
 // each book's file state against disk. It marks books complete when a final
 // audiobook file exists and marks previously complete books as new when the file
@@ -20,61 +40,182 @@ func reconcileExistingAudiobookFiles(ctx context.Context, db database.Database, 
 	return reconcileExistingAudiobookFilesWithProgress(ctx, db, libraryRoot, nil)
 }
 
-// reconcileExistingAudiobookFilesWithProgress behaves like reconcileExistingAudiobookFiles
-// and optionally reports scan progress as processed/total books.
+// reconcileExistingAudiobookFilesWithProgress scans the library directory for all audio files,
+// attempts to match them to known books, and updates the database. This is a filesystem-driven
+// approach that discovers both matched and unmatched audio files.
+// Returns the count of books that were reconciled/updated.
 func reconcileExistingAudiobookFilesWithProgress(ctx context.Context, db database.Database, libraryRoot string, onProgress func(processed, total int)) (int, error) {
 	if strings.TrimSpace(libraryRoot) == "" {
 		return 0, nil
 	}
 
-	updated := 0
-	processed := 0
-	totalBooks := 0
-	totalKnown := false
-	limit := 200
-	offset := 0
-
-	for {
-		books, total, err := db.ListBooks(ctx, database.BookFilter{Limit: limit, Offset: offset})
+	// Phase 1: Discover all audio files in the library
+	discoveredFiles := make(map[string]int64) // path -> size
+	err := filepath.WalkDir(libraryRoot, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			return updated, err
+			return nil // skip inaccessible directories
 		}
-		if !totalKnown {
-			totalBooks = total
-			totalKnown = true
-			if onProgress != nil {
-				onProgress(0, totalBooks)
-			}
+		if d.IsDir() {
+			return nil
 		}
-		if len(books) == 0 {
-			break
+		if !isAudioFile(d.Name()) {
+			return nil
 		}
 
-		for i := range books {
-			changed, err := reconcileBookFromLibrary(ctx, db, &books[i], libraryRoot)
-			if err != nil {
-				return updated, err
-			}
-			processed++
-			if onProgress != nil {
-				onProgress(processed, totalBooks)
-			}
-			if changed {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return nil // skip files we can't stat
+		}
+		discoveredFiles[path] = info.Size()
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	// Build an index of ASIN -> file path for fast primary matching.
+	asinFileIndex := buildASINFileIndex(discoveredFiles)
+
+	// Phase 2: Load all books from the database
+	books, _, err := db.ListBooks(ctx, database.BookFilter{Limit: 10000, Offset: 0})
+	if err != nil {
+		return 0, err
+	}
+
+	// Phase 3: Build a map of matched files per book and track unmatched files
+	matchedFiles := make(map[string]struct{}) // files that were matched to a book
+	updated := 0
+
+	totalWork := len(books) + 1 // books to reconcile + final cleanup
+	processed := 0
+
+	// For each book, find its best matching file on disk
+	for i := range books {
+		select {
+		case <-ctx.Done():
+			return updated, ctx.Err()
+		default:
+		}
+
+		matchedFile, matchedSize := findBestFileForBook(ctx, &books[i], libraryRoot, discoveredFiles, asinFileIndex)
+		if matchedFile != "" {
+			matchedFiles[matchedFile] = struct{}{}
+
+			// Update book if file status changed
+			if books[i].FilePath != matchedFile || books[i].FileSize != matchedSize || books[i].Status != database.BookStatusComplete {
+				books[i].FilePath = matchedFile
+				books[i].FileSize = matchedSize
+				books[i].Status = database.BookStatusComplete
+				if err := db.UpsertBook(ctx, &books[i]); err != nil {
+					return updated, err
+				}
 				updated++
 			}
+		} else if books[i].Status == database.BookStatusComplete {
+			// Book was marked complete but file is missing
+			books[i].FilePath = ""
+			books[i].FileSize = 0
+			books[i].Status = database.BookStatusNew
+			if err := db.UpsertBook(ctx, &books[i]); err != nil {
+				return updated, err
+			}
+			updated++
 		}
 
-		offset += len(books)
-		if offset >= total {
-			break
+		processed++
+		if onProgress != nil {
+			onProgress(processed, totalWork)
 		}
 	}
 
+	// Phase 4: Log unmatched files for debugging (these could be from older versions or other sources)
+	unmatchedCount := 0
+	for filePath := range discoveredFiles {
+		if _, matched := matchedFiles[filePath]; !matched {
+			unmatchedCount++
+		}
+	}
+
+	if unmatchedCount > 0 {
+		// In future, we could add logic to:
+		// 1. Read metadata from unmatched files
+		// 2. Attempt fuzzy matching by comparing metadata to book info
+		// 3. Create database entries for truly orphaned files
+		// For now, just track that they exist
+		syncLog.Info().Int("count", unmatchedCount).Msg("found unmatched audio files in library (not matched to any database book)")
+	}
+
+	processed++
 	if onProgress != nil {
-		onProgress(processed, totalBooks)
+		onProgress(processed, totalWork)
 	}
 
 	return updated, nil
+}
+
+// findBestFileForBook searches for matching audio files for a book in discoveredFiles.
+// It returns the best matching file path and its size, or empty string if no match found.
+func findBestFileForBook(ctx context.Context, book *database.Book, libraryRoot string, discoveredFiles map[string]int64, asinFileIndex map[string]string) (string, int64) {
+	if book == nil {
+		return "", 0
+	}
+
+	_ = ctx
+
+	// First choice: ASIN match from discovered filenames.
+	asin := strings.ToUpper(strings.TrimSpace(book.ASIN))
+	if asin != "" {
+		if path, ok := asinFileIndex[asin]; ok {
+			if size, found := discoveredFiles[path]; found {
+				return path, size
+			}
+		}
+	}
+
+	paths := candidateLibraryPaths(book, libraryRoot)
+
+	// Second choice: if we have a previously stored path and it exists in discoveredFiles
+	if book.FilePath != "" {
+		if size, found := discoveredFiles[book.FilePath]; found {
+			return book.FilePath, size
+		}
+	}
+
+	// Third choice: check all candidate paths against discovered files
+	for _, path := range paths {
+		if size, found := discoveredFiles[path]; found {
+			return path, size
+		}
+	}
+
+	return "", 0
+}
+
+func buildASINFileIndex(discoveredFiles map[string]int64) map[string]string {
+	index := make(map[string]string)
+	asinRe := regexp.MustCompile(`(?i)\bB[0-9A-Z]{9}\b`)
+
+	for path := range discoveredFiles {
+		name := filepath.Base(path)
+		match := asinRe.FindString(name)
+		if match == "" {
+			continue
+		}
+
+		asin := strings.ToUpper(match)
+		// Keep first match to avoid non-deterministic overwrites.
+		if _, exists := index[asin]; !exists {
+			index[asin] = path
+		}
+	}
+
+	return index
 }
 
 func reconcileBookFromLibrary(ctx context.Context, db database.Database, book *database.Book, libraryRoot string) (bool, error) {
@@ -123,7 +264,9 @@ func candidateLibraryPaths(book *database.Book, libraryRoot string) []string {
 	authors := authorCandidates(book.Author)
 	titles := titleCandidates(book)
 	filenameBases := filenameBaseCandidates(book)
-	exts := []string{"m4b", "mp3"}
+
+	// Support all audio extensions, not just m4b and mp3
+	exts := []string{"m4b", "m4a", "mp3", "aax", "aaxc", "flac", "ogg", "wma", "aac", "opus"}
 
 	seen := make(map[string]struct{})
 	paths := make([]string, 0, len(authors)*len(titles)*len(filenameBases)*len(exts)+1)

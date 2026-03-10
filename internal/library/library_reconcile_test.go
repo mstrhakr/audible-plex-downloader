@@ -68,6 +68,44 @@ func TestReconcileBookFromLibraryMarksMissingCompleteAsNew(t *testing.T) {
 	}
 }
 
+func TestBuildASINFileIndexExtractsASINFromFilename(t *testing.T) {
+	files := map[string]int64{
+		filepath.Join("root", "pirateaba", "Hell's Wardens B0DCCZ5MG2 [us]", "Hell's Wardens The Wandering Inn, Book 14 - The Wandering Inn 14 B0DCCZ5MG2 [us].m4b"): 100,
+		filepath.Join("root", "misc", "not-a-book.txt"): 10,
+	}
+
+	index := buildASINFileIndex(files)
+	if got := index["B0DCCZ5MG2"]; got == "" {
+		t.Fatalf("buildASINFileIndex() missing ASIN key %q", "B0DCCZ5MG2")
+	}
+}
+
+func TestFindBestFileForBookPrefersASINMatch(t *testing.T) {
+	root := filepath.Join("root")
+	asinFile := filepath.Join(root, "pirateaba", "Hell's Wardens B0DCCZ5MG2 [us]", "Hell's Wardens The Wandering Inn, Book 14 - The Wandering Inn 14 B0DCCZ5MG2 [us].m4b")
+	otherFile := filepath.Join(root, "pirateaba", "Something Else", "Unrelated.m4b")
+
+	discovered := map[string]int64{
+		asinFile:  12345,
+		otherFile: 111,
+	}
+
+	book := &database.Book{
+		ASIN:   "B0DCCZ5MG2",
+		Title:  "Hell's Wardens",
+		Author: "pirateaba",
+		Status: database.BookStatusNew,
+	}
+
+	matchedPath, matchedSize := findBestFileForBook(context.Background(), book, root, discovered, buildASINFileIndex(discovered))
+	if matchedPath != asinFile {
+		t.Fatalf("findBestFileForBook() path = %q, want %q", matchedPath, asinFile)
+	}
+	if matchedSize != 12345 {
+		t.Fatalf("findBestFileForBook() size = %d, want %d", matchedSize, 12345)
+	}
+}
+
 func containsPath(paths []string, want string) bool {
 	for _, p := range paths {
 		if p == want {
