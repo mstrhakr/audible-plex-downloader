@@ -28,9 +28,12 @@
                 </div>
                 {{else if .AuthURL}}
                 <div class="auth-flow">
-                    <div class="info-box" style="margin-bottom: 1rem;">
-                        <strong>Step 1:</strong> Click the button below to open Amazon's login page in a new tab.
-                    </div>
+                    <ol class="auth-steps">
+                        <li>Open Amazon login in a new tab.</li>
+                        <li>Sign in and finish any prompts.</li>
+                        <li>Copy the <strong>entire</strong> URL from that tab.</li>
+                        <li>Paste it below and submit.</li>
+                    </ol>
 
                     <p style="margin-bottom: 1rem;">
                         <a href="{{.AuthURL}}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">Open Amazon Login</a>
@@ -41,6 +44,11 @@
                         That's normal. <strong>Copy the entire URL</strong> from that tab's address bar and paste it below.
                     </div>
 
+                    <details class="auth-help">
+                        <summary>Show example of what to copy</summary>
+                        <img src="/static/amazon-redirect-help.svg" alt="Example showing the Amazon redirect URL to copy" class="auth-help-image">
+                    </details>
+
                     <form method="POST" action="/auth/callback" class="settings-form">
                         <input type="hidden" name="code_verifier" value="{{.CodeVerifier}}">
                         <input type="hidden" name="device_serial" value="{{.DeviceSerial}}">
@@ -49,6 +57,7 @@
                             <input type="text" id="redirect_url" name="redirect_url"
                                 placeholder="https://www.amazon.com/ap/maplanding?openid.oa2.authorization_code=..."
                                 autofocus required>
+                            <small id="redirect_url_help">Paste the full URL including <code>openid.oa2.authorization_code=...</code></small>
                         </div>
                         <button type="submit" class="btn btn-primary">Complete Authentication</button>
                     </form>
@@ -407,6 +416,36 @@ function executeReset() {
         });
     }
 
+    var redirectInput = document.getElementById('redirect_url');
+    var redirectHelp = document.getElementById('redirect_url_help');
+    if (redirectInput && redirectHelp) {
+        var validateRedirect = function() {
+            var value = (redirectInput.value || '').trim();
+            if (!value) {
+                redirectHelp.textContent = 'Paste the full URL including openid.oa2.authorization_code=...';
+                redirectHelp.className = '';
+                redirectInput.classList.remove('auth-input-good');
+                redirectInput.classList.remove('auth-input-bad');
+                return;
+            }
+            var hasCode = value.indexOf('openid.oa2.authorization_code=') !== -1;
+            var looksLikeURL = /^https?:\/\//i.test(value);
+            if (hasCode && looksLikeURL) {
+                redirectHelp.textContent = 'Looks good. You can submit this URL.';
+                redirectHelp.className = 'auth-help-success';
+                redirectInput.classList.add('auth-input-good');
+                redirectInput.classList.remove('auth-input-bad');
+            } else {
+                redirectHelp.textContent = 'This does not look like the Amazon redirect URL yet. Make sure you copied the full browser URL.';
+                redirectHelp.className = 'auth-help-error';
+                redirectInput.classList.add('auth-input-bad');
+                redirectInput.classList.remove('auth-input-good');
+            }
+        };
+        redirectInput.addEventListener('input', validateRedirect);
+        validateRedirect();
+    }
+
     {{if .FocusSection}}
     var focusEl = document.getElementById('{{.FocusSection}}-settings');
     if (focusEl) {
@@ -457,6 +496,57 @@ function executeReset() {
     .auth-flow p {
         margin-bottom: 1rem;
         color: #b7bcc6;
+    }
+
+    .auth-steps {
+        margin: 0 0 1rem;
+        padding-left: 1.25rem;
+        color: #d6e0f0;
+    }
+
+    .auth-steps li {
+        margin-bottom: 0.35rem;
+    }
+
+    .auth-help {
+        margin: 1rem 0 1.25rem;
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 6px;
+        background: rgba(0,0,0,0.18);
+        padding: 0.6rem 0.8rem;
+    }
+
+    .auth-help summary {
+        cursor: pointer;
+        color: #9ec5ff;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+    }
+
+    .auth-help-image {
+        display: block;
+        width: 100%;
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 6px;
+        background: #0d1624;
+    }
+
+    .auth-help-success {
+        color: #6bd78c;
+    }
+
+    .auth-help-error {
+        color: #ff9e9e;
+    }
+
+    .auth-input-good {
+        border-color: rgba(107, 215, 140, 0.75) !important;
+        box-shadow: 0 0 0 2px rgba(107, 215, 140, 0.15) !important;
+    }
+
+    .auth-input-bad {
+        border-color: rgba(255, 124, 124, 0.75) !important;
+        box-shadow: 0 0 0 2px rgba(255, 124, 124, 0.15) !important;
     }
 
     .info-grid {

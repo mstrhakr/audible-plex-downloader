@@ -226,7 +226,6 @@ func (s *Server) setupRoutes() {
 	s.router.GET("/settings", s.handleSettings)
 
 	// Auth
-	s.router.GET("/auth", s.handleAuth)
 	s.router.POST("/auth/start", s.handleAuthStart)
 	s.router.POST("/auth/callback", s.handleAuthCallback)
 	s.router.GET("/auth/status", s.handleAuthStatus)
@@ -1129,11 +1128,6 @@ func (s *Server) purgeDirectory(dir string) {
 		}
 	}
 	webLog.Info().Str("path", dir).Msg("factory reset: directory purged")
-}
-
-// handleAuth renders the authentication page.
-func (s *Server) handleAuth(c *gin.Context) {
-	c.Redirect(http.StatusSeeOther, "/settings#auth-settings")
 }
 
 func (s *Server) authBaseData(ctx context.Context) gin.H {
