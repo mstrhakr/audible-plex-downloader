@@ -1,6 +1,6 @@
 {{define "sync_status.html"}}
 {{if .Running}}
-<div class="sync-status-container" hx-get="/api/sync/status" hx-trigger="every 500ms" hx-target="#sync-status" hx-swap="innerHTML">
+<div class="sync-status-container">
 	<div class="sync-header">
 		<span class="status-msg sync-running">{{if eq .Mode "quick"}}Quick{{else}}Full{{end}} sync in progress</span>
 	</div>

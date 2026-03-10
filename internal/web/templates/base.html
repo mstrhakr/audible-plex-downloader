@@ -63,6 +63,71 @@
             return Math.floor(secs/3600) + 'h ' + Math.floor((secs%3600)/60) + 'm';
         }
 
+        function onSyncEvent(e) {
+            var d = JSON.parse(e.data);
+            var el = document.getElementById('sync-status');
+            if (!el) return;
+
+            if (d.running) {
+                var modeLabel = d.mode === 'quick' ? 'Quick' : 'Full';
+                var html = '<div class="sync-status-container">';
+                html += '<div class="sync-header"><span class="status-msg sync-running">' + modeLabel + ' sync in progress</span></div>';
+                if (d.phases && d.phases.length > 0) {
+                    html += '<div class="sync-phases">';
+                    for (var i = 0; i < d.phases.length; i++) {
+                        var p = d.phases[i];
+                        var icon = '&#9675;'; // pending
+                        if (p.status === 'complete') icon = '&#10003;';
+                        else if (p.status === 'failed') icon = '&#10007;';
+                        else if (p.status === 'running') icon = '&#9679;';
+                        else if (p.status === 'skipped') icon = '&#8212;';
+                        html += '<div class="sync-phase ' + p.status + '">';
+                        html += '<span class="phase-icon">' + icon + '</span>';
+                        html += '<span class="phase-label">' + p.label + '</span>';
+                        if (p.message) html += '<span class="phase-detail">' + p.message + '</span>';
+                        html += '</div>';
+                    }
+                    html += '</div>';
+                }
+                if (d.books_found > 0) {
+                    var pct = Math.round(d.percent * 100);
+                    html += '<div class="sync-detail">' + d.books_scanned + ' / ' + d.books_found + ' books scanned, ' + d.books_added + ' new</div>';
+                    html += '<div class="progress-bar sync-progress"><div class="progress-fill" style="width:' + pct + '%"></div></div>';
+                }
+                html += '</div>';
+                el.innerHTML = html;
+            } else if (d.status === 'failed') {
+                el.innerHTML = '<div class="sync-status-container"><span class="status-msg error">Sync failed: ' + (d.error || '') + '</span>' +
+                    '<button hx-post="/api/sync/retry" hx-target="#sync-status" hx-swap="innerHTML" class="btn btn-sm btn-danger" style="margin-left:0.5rem">Retry</button></div>';
+                if (window.htmx) htmx.process(el);
+            } else if (d.status === 'partial') {
+                var html = '<div class="sync-status-container"><span class="status-msg warning">Sync finished with errors</span>';
+                if (d.phases && d.phases.length > 0) {
+                    html += '<div class="sync-phases">';
+                    for (var i = 0; i < d.phases.length; i++) {
+                        var p = d.phases[i];
+                        if (p.status === 'failed') {
+                            html += '<div class="sync-phase failed"><span class="phase-icon">&#10007;</span><span class="phase-label">' + p.label + '</span><span class="phase-detail error">' + (p.error || '') + '</span></div>';
+                        } else if (p.status === 'complete') {
+                            html += '<div class="sync-phase complete"><span class="phase-icon">&#10003;</span><span class="phase-label">' + p.label + '</span>';
+                            if (p.message) html += '<span class="phase-detail">' + p.message + '</span>';
+                            html += '</div>';
+                        }
+                    }
+                    html += '</div>';
+                }
+                html += '<button hx-post="/api/sync/retry" hx-target="#sync-status" hx-swap="innerHTML" class="btn btn-sm btn-warning" style="margin-left:0.5rem">Retry</button></div>';
+                el.innerHTML = html;
+                if (window.htmx) htmx.process(el);
+            } else if (d.status === 'complete') {
+                var html = '<div class="sync-status-container"><span class="status-msg success">' + (d.message || 'Sync complete') + '</span>';
+                if (d.books_added > 0) html += '<span class="sync-detail">&mdash; ' + d.books_added + ' new books added</span>';
+                if (d.plex_scanned) html += '<span class="sync-detail">&mdash; Plex scan triggered</span>';
+                html += '</div>';
+                el.innerHTML = html;
+            }
+        }
+
         function onPipelineEvent(e) {
             var d = JSON.parse(e.data);
 
@@ -234,6 +299,7 @@
             };
 
             es.addEventListener('pipeline', onPipelineEvent);
+            es.addEventListener('sync', onSyncEvent);
 
             es.onerror = function() {
                 closeEventSource();

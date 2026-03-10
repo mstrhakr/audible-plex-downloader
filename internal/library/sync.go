@@ -96,6 +96,24 @@ func (p SyncProgress) Percent() float64 {
 type PlexScanFunc func(ctx context.Context) (plexItemCount int, err error)
 type PlexTriggerScanFunc func(ctx context.Context) error
 
+// SyncEvent is emitted via SSE whenever sync progress changes.
+type SyncEvent struct {
+	Running      bool          `json:"running"`
+	Mode         SyncMode      `json:"mode"`
+	Status       string        `json:"status"`
+	Message      string        `json:"message,omitempty"`
+	Error        string        `json:"error,omitempty"`
+	BooksFound   int           `json:"books_found"`
+	BooksScanned int           `json:"books_scanned"`
+	BooksAdded   int           `json:"books_added"`
+	FilesFound   int           `json:"files_found"`
+	PlexItems    int           `json:"plex_items"`
+	PlexScanned  bool          `json:"plex_scanned"`
+	Percent      float64       `json:"percent"`
+	CurrentPhase SyncPhase     `json:"current_phase,omitempty"`
+	Phases       []PhaseStatus `json:"phases,omitempty"`
+}
+
 // SyncService handles syncing the Audible library to the local database.
 type SyncService struct {
 	db     database.Database
@@ -112,17 +130,80 @@ type SyncService struct {
 
 	// Track last sync for retry
 	lastMode SyncMode
+
+	// SSE subscriber support
+	subMu       sync.Mutex
+	subscribers map[int]chan SyncEvent
+	nextSubID   int
 }
 
 // NewSyncService creates a new library sync service.
 func NewSyncService(db database.Database, client *audible.Client, libraryDir string) *SyncService {
-	return &SyncService{db: db, client: client, libraryDir: libraryDir}
+	return &SyncService{
+		db:          db,
+		client:      client,
+		libraryDir:  libraryDir,
+		subscribers: make(map[int]chan SyncEvent),
+	}
 }
 
 // SetPlexCallbacks registers Plex integration functions.
 func (s *SyncService) SetPlexCallbacks(queryFn PlexScanFunc, scanFn PlexTriggerScanFunc) {
 	s.plexQueryFunc = queryFn
 	s.plexScanFunc = scanFn
+}
+
+// Subscribe returns a channel that receives sync progress events and an ID to unsubscribe.
+func (s *SyncService) Subscribe() (int, <-chan SyncEvent) {
+	s.subMu.Lock()
+	defer s.subMu.Unlock()
+	id := s.nextSubID
+	s.nextSubID++
+	ch := make(chan SyncEvent, 32)
+	s.subscribers[id] = ch
+	return id, ch
+}
+
+// Unsubscribe removes a subscriber and closes its channel.
+func (s *SyncService) Unsubscribe(id int) {
+	s.subMu.Lock()
+	defer s.subMu.Unlock()
+	if ch, ok := s.subscribers[id]; ok {
+		close(ch)
+		delete(s.subscribers, id)
+	}
+}
+
+// emit sends the current progress snapshot to all subscribers.
+// Must be called while s.mu is held (read or write).
+func (s *SyncService) emitLocked() {
+	s.subMu.Lock()
+	defer s.subMu.Unlock()
+	if len(s.subscribers) == 0 {
+		return
+	}
+	evt := SyncEvent{
+		Running:      s.progress.Running,
+		Mode:         s.progress.Mode,
+		Status:       s.progress.Status,
+		Message:      s.progress.Message,
+		Error:        s.progress.Error,
+		BooksFound:   s.progress.BooksFound,
+		BooksScanned: s.progress.BooksScanned,
+		BooksAdded:   s.progress.BooksAdded,
+		FilesFound:   s.progress.FilesFound,
+		PlexItems:    s.progress.PlexItems,
+		PlexScanned:  s.progress.PlexScanned,
+		Percent:      s.progress.Percent(),
+		CurrentPhase: s.progress.CurrentPhase,
+		Phases:       append([]PhaseStatus(nil), s.progress.Phases...),
+	}
+	for _, ch := range s.subscribers {
+		select {
+		case ch <- evt:
+		default:
+		}
+	}
 }
 
 // GetProgress returns the latest sync progress snapshot.
@@ -173,6 +254,7 @@ func (s *SyncService) runSync(ctx context.Context, mode SyncMode) (int, error) {
 		Phases:    phases,
 	}
 	s.lastMode = mode
+	s.emitLocked()
 	s.mu.Unlock()
 
 	syncRecord := &database.SyncHistory{
@@ -207,6 +289,7 @@ func (s *SyncService) runSync(ctx context.Context, mode SyncMode) (int, error) {
 			filesReconciled = reconciled
 			s.mu.Lock()
 			s.progress.FilesFound = reconciled
+			s.emitLocked()
 			s.mu.Unlock()
 			s.setPhase(PhaseFileScan, "complete", fmt.Sprintf("%d files reconciled", reconciled))
 			if reconciled > 0 {
@@ -238,6 +321,7 @@ func (s *SyncService) runSync(ctx context.Context, mode SyncMode) (int, error) {
 			plexItems = items
 			s.mu.Lock()
 			s.progress.PlexItems = plexItems
+			s.emitLocked()
 			s.mu.Unlock()
 			s.setPhase(PhasePlexQuery, "complete", fmt.Sprintf("%d items in Plex", plexItems))
 			syncLog.Info().Int("plex_items", plexItems).Msg("queried Plex library")
@@ -261,6 +345,7 @@ func (s *SyncService) runSync(ctx context.Context, mode SyncMode) (int, error) {
 			} else {
 				s.mu.Lock()
 				s.progress.PlexScanned = true
+				s.emitLocked()
 				s.mu.Unlock()
 				s.setPhase(PhasePlexScan, "complete", "Plex scan triggered")
 				syncLog.Info().Msg("plex library scan triggered")
@@ -292,6 +377,7 @@ func (s *SyncService) runSync(ctx context.Context, mode SyncMode) (int, error) {
 	} else {
 		s.progress.Message = fmt.Sprintf("%s sync finished with errors", ucfirst(string(mode)))
 	}
+	s.emitLocked()
 	s.mu.Unlock()
 
 	if err != nil {
@@ -342,6 +428,7 @@ func (s *SyncService) setPhase(phase SyncPhase, status, message string) {
 			break
 		}
 	}
+	s.emitLocked()
 }
 
 func (s *SyncService) overallStatus() string {
@@ -383,6 +470,7 @@ func (s *SyncService) doAudibleSync(ctx context.Context, syncRecord *database.Sy
 	syncRecord.BooksFound = len(books)
 	s.mu.Lock()
 	s.progress.BooksFound = len(books)
+	s.emitLocked()
 	s.mu.Unlock()
 	_ = s.db.UpdateSync(ctx, syncRecord)
 	syncLog.Info().Int("total_books", len(books)).Msg("fetched audible library")
@@ -400,6 +488,9 @@ func (s *SyncService) doAudibleSync(ctx context.Context, syncRecord *database.Sy
 			s.mu.Lock()
 			s.progress.BooksScanned = scanned
 			s.progress.BooksAdded = added
+			if scanned%10 == 0 {
+				s.emitLocked()
+			}
 			s.mu.Unlock()
 			continue
 		}
@@ -422,6 +513,9 @@ func (s *SyncService) doAudibleSync(ctx context.Context, syncRecord *database.Sy
 			s.mu.Lock()
 			s.progress.BooksScanned = scanned
 			s.progress.BooksAdded = added
+			if scanned%10 == 0 {
+				s.emitLocked()
+			}
 			s.mu.Unlock()
 			if scanned%20 == 0 {
 				syncRecord.BooksAdded = added
@@ -434,6 +528,9 @@ func (s *SyncService) doAudibleSync(ctx context.Context, syncRecord *database.Sy
 		s.mu.Lock()
 		s.progress.BooksScanned = scanned
 		s.progress.BooksAdded = added
+		if scanned%10 == 0 {
+			s.emitLocked()
+		}
 		s.mu.Unlock()
 		if scanned%20 == 0 {
 			syncRecord.BooksAdded = added
@@ -453,6 +550,7 @@ func (s *SyncService) finishProgressWithError(err error) {
 	s.progress.Message = "Sync failed"
 	s.progress.Error = err.Error()
 	s.progress.CompletedAt = time.Now()
+	s.emitLocked()
 }
 
 // MarshalPhases returns a JSON representation of the current phase statuses.

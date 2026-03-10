@@ -873,25 +873,34 @@ func (s *Server) handleDownloadsState(c *gin.Context) {
 	c.JSON(http.StatusOK, state)
 }
 
-// handleSSE streams pipeline events via Server-Sent Events.
+// handleSSE streams pipeline and sync events via Server-Sent Events.
 func (s *Server) handleSSE(c *gin.Context) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 
-	subID, events := s.downloads.Subscribe()
-	defer s.downloads.Unsubscribe(subID)
+	dlID, dlEvents := s.downloads.Subscribe()
+	defer s.downloads.Unsubscribe(dlID)
+
+	syncID, syncEvents := s.sync.Subscribe()
+	defer s.sync.Unsubscribe(syncID)
 
 	ctx := c.Request.Context()
 	c.Stream(func(w io.Writer) bool {
 		select {
 		case <-ctx.Done():
 			return false
-		case evt, ok := <-events:
+		case evt, ok := <-dlEvents:
 			if !ok {
 				return false
 			}
 			c.SSEvent("pipeline", evt)
+			return true
+		case evt, ok := <-syncEvents:
+			if !ok {
+				return false
+			}
+			c.SSEvent("sync", evt)
 			return true
 		}
 	})
