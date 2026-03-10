@@ -547,17 +547,21 @@ func (s *Server) handleSettings(c *gin.Context) {
 
 	syncSchedule, _ := s.db.GetSetting(ctx, "sync_schedule")
 	outputFormat, _ := s.db.GetSetting(ctx, "output_format")
+	nativeAudiobooksPath, _ := s.db.GetSetting(ctx, "native_audiobooks_path")
+	plexSectionPath, _ := s.db.GetSetting(ctx, "plex_section_path")
 
 	devices, _ := s.db.ListDevices(ctx)
 
 	c.HTML(http.StatusOK, "settings.html", gin.H{
-		"SyncSchedule":   syncSchedule,
-		"OutputFormat":   outputFormat,
-		"Devices":        devices,
-		"Page":           "settings",
-		"AudiobooksPath": s.audiobooksPath,
-		"DownloadsPath":  s.downloadsPath,
-		"ConfigPath":     s.configPath,
+		"SyncSchedule":         syncSchedule,
+		"OutputFormat":         outputFormat,
+		"NativeAudiobooksPath": nativeAudiobooksPath,
+		"PlexSectionPath":      plexSectionPath,
+		"Devices":              devices,
+		"Page":                 "settings",
+		"AudiobooksPath":       s.audiobooksPath,
+		"DownloadsPath":        s.downloadsPath,
+		"ConfigPath":           s.configPath,
 	})
 }
 
@@ -801,6 +805,10 @@ func (s *Server) handleSaveSettings(c *gin.Context) {
 	}
 	if format := c.PostForm("output_format"); format != "" {
 		_ = s.db.SetSetting(ctx, "output_format", format)
+	}
+	// native_audiobooks_path is optional; save even if empty (user clearing it)
+	if nativePath, ok := c.GetPostForm("native_audiobooks_path"); ok {
+		_ = s.db.SetSetting(ctx, "native_audiobooks_path", nativePath)
 	}
 
 	if c.GetHeader("HX-Request") == "true" {

@@ -5,11 +5,25 @@
     <!-- System Information -->
     <div class="settings-section">
         <h2>System Information</h2>
+
+        <h3 class="path-group-title">Audiobooks</h3>
         <div class="info-grid">
             <div class="info-item">
-                <label>Audiobooks Path</label>
+                <label>Container Path</label>
                 <div class="info-value">{{.AudiobooksPath}}</div>
             </div>
+            <div class="info-item">
+                <label>Host Filesystem Path</label>
+                <div class="info-value">{{if .NativeAudiobooksPath}}{{.NativeAudiobooksPath}}{{else}}<span class="muted">Not configured</span>{{end}}</div>
+            </div>
+            <div class="info-item">
+                <label>Plex Library Path</label>
+                <div class="info-value">{{if .PlexSectionPath}}{{.PlexSectionPath}}{{else}}<span class="muted">Not configured</span>{{end}}</div>
+            </div>
+        </div>
+
+        <h3 class="path-group-title">Other Paths</h3>
+        <div class="info-grid">
             <div class="info-item">
                 <label>Downloads Path</label>
                 <div class="info-value">{{.DownloadsPath}}</div>
@@ -29,6 +43,12 @@
                 <label for="sync_schedule">Sync Schedule (cron)</label>
                 <input type="text" id="sync_schedule" name="sync_schedule" value="{{.SyncSchedule}}" placeholder="0 */6 * * *">
                 <small>Standard cron expression. Leave empty to disable. Example: <code>0 */6 * * *</code> = every 6 hours</small>
+            </div>
+
+            <div class="form-group">
+                <label for="native_audiobooks_path">Host Audiobooks Path</label>
+                <input type="text" id="native_audiobooks_path" name="native_audiobooks_path" value="{{.NativeAudiobooksPath}}" placeholder="/mnt/media/audiobooks">
+                <small>The path to your audiobooks directory on the host filesystem (for reference only)</small>
             </div>
 
             <div class="form-group">
@@ -106,6 +126,17 @@
         border-left: 3px solid #00d9ff;
     }
 
+    .path-group-title {
+        color: #ccc;
+        font-size: 0.95rem;
+        margin: 1rem 0 0.5rem;
+        font-weight: 500;
+    }
+
+    .path-group-title:first-of-type {
+        margin-top: 0;
+    }
+
     .info-item label {
         display: block;
         font-size: 0.85rem;
@@ -113,6 +144,11 @@
         margin-bottom: 0.5rem;
         text-transform: uppercase;
         letter-spacing: 0.5px;
+    }
+
+    .muted {
+        color: #666;
+        font-style: italic;
     }
 
     .info-value {
