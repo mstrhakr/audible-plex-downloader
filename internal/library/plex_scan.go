@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
@@ -41,23 +42,14 @@ func (dm *DownloadManager) triggerPlexScanForBook(finalPath string) {
 
 		localScanPath := filepath.Dir(finalPath)
 
-		// If Plex path is configured, translate local path to Plex path
-		scanPath := localScanPath
-		if plexPath, err := dm.db.GetSetting(ctx, "plex_section_path"); err == nil && strings.TrimSpace(plexPath) != "" {
-			plexPath = strings.TrimSpace(plexPath)
-			libRoot := strings.TrimSpace(dm.libraryDir)
-			if libRoot != "" && plexPath != libRoot {
-				// Replace the local library root with the Plex library root in the scan path
-				if strings.HasPrefix(localScanPath, libRoot) {
-					rel := strings.TrimPrefix(localScanPath, libRoot)
-					rel = strings.TrimPrefix(rel, string(filepath.Separator))
-					scanPath = filepath.Join(plexPath, rel)
-					dlLog.Debug().
-						Str("local_path", localScanPath).
-						Str("plex_path", scanPath).
-						Msg("translated scan path to plex location")
-				}
-			}
+		// Resolve a Plex-visible path for a targeted scan.
+		scanPath, ok := dm.resolvePlexScanPath(ctx, plexURL, plexToken, sectionID, localScanPath)
+		if !ok {
+			dlLog.Warn().
+				Str("local_path", localScanPath).
+				Str("section_id", sectionID).
+				Msg("skipping per-book plex scan because section path is unavailable")
+			return
 		}
 
 		if err := dm.triggerPlexSectionScan(ctx, plexURL, plexToken, sectionID, scanPath); err != nil {
@@ -67,6 +59,147 @@ func (dm *DownloadManager) triggerPlexScanForBook(finalPath string) {
 
 		dlLog.Info().Str("scan_path", scanPath).Str("section_id", sectionID).Msg("plex scan triggered for completed book")
 	}()
+}
+
+type plexSectionDetailResponse struct {
+	Directories []plexSectionDetailDirectory `xml:"Directory"`
+}
+
+type plexSectionDetailDirectory struct {
+	Locations []plexLocation `xml:"Location"`
+}
+
+type plexLocation struct {
+	Path string `xml:"path,attr"`
+}
+
+func (dm *DownloadManager) resolvePlexScanPath(ctx context.Context, plexURL, plexToken, sectionID, localScanPath string) (string, bool) {
+	plexPath, _ := dm.db.GetSetting(ctx, "plex_section_path")
+	plexPath = strings.TrimSpace(plexPath)
+
+	if plexPath == "" {
+		fetched, err := dm.fetchPlexSectionPath(ctx, plexURL, plexToken, sectionID)
+		if err != nil {
+			dlLog.Warn().Err(err).Str("section_id", sectionID).Msg("failed to fetch plex section path")
+		} else if fetched != "" {
+			plexPath = fetched
+			if err := dm.db.SetSetting(ctx, "plex_section_path", fetched); err != nil {
+				dlLog.Warn().Err(err).Str("plex_section_path", fetched).Msg("failed to cache plex section path")
+			}
+		}
+	}
+
+	if plexPath == "" {
+		return "", false
+	}
+
+	libRoot := strings.TrimSpace(dm.libraryDir)
+	scanPath, ok := translateScanPath(localScanPath, libRoot, plexPath)
+	if !ok {
+		dlLog.Warn().
+			Str("local_path", localScanPath).
+			Str("library_root", libRoot).
+			Str("plex_section_path", plexPath).
+			Msg("unable to translate scan path; skipping per-book plex scan")
+		return "", false
+	}
+
+	if scanPath != localScanPath {
+		dlLog.Debug().
+			Str("local_path", localScanPath).
+			Str("plex_path", scanPath).
+			Msg("translated scan path to plex location")
+	}
+
+	return scanPath, true
+}
+
+func (dm *DownloadManager) fetchPlexSectionPath(ctx context.Context, plexURL, token, sectionID string) (string, error) {
+	base, err := url.Parse(strings.TrimRight(plexURL, "/"))
+	if err != nil {
+		return "", fmt.Errorf("invalid Plex URL: %w", err)
+	}
+
+	base.Path = strings.TrimRight(base.Path, "/") + "/library/sections/" + url.PathEscape(sectionID)
+	q := base.Query()
+	q.Set("X-Plex-Token", token)
+	base.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base.String(), nil)
+	if err != nil {
+		return "", err
+	}
+	dm.addPlexHeaders(req, token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return "", fmt.Errorf("plex section detail endpoint returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var detailResp plexSectionDetailResponse
+	if err := xml.NewDecoder(resp.Body).Decode(&detailResp); err != nil {
+		return "", fmt.Errorf("failed to parse section details: %w", err)
+	}
+
+	for _, dir := range detailResp.Directories {
+		for _, loc := range dir.Locations {
+			if p := strings.TrimSpace(loc.Path); p != "" {
+				return p, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no location path found for section %s", sectionID)
+}
+
+func translateScanPath(localScanPath, localLibraryRoot, plexLibraryRoot string) (string, bool) {
+	localScanPath = strings.TrimSpace(localScanPath)
+	localLibraryRoot = strings.TrimSpace(localLibraryRoot)
+	plexLibraryRoot = strings.TrimSpace(plexLibraryRoot)
+
+	if localScanPath == "" || plexLibraryRoot == "" {
+		return "", false
+	}
+
+	if localLibraryRoot == "" {
+		if pathsEquivalent(localScanPath, plexLibraryRoot) {
+			return plexLibraryRoot, true
+		}
+		return "", false
+	}
+
+	rel, err := filepath.Rel(localLibraryRoot, localScanPath)
+	if err != nil {
+		return "", false
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+
+	if rel == "." {
+		return plexLibraryRoot, true
+	}
+
+	parts := strings.Split(rel, string(filepath.Separator))
+	if strings.Contains(plexLibraryRoot, `\`) && !strings.Contains(plexLibraryRoot, "/") {
+		return strings.TrimRight(plexLibraryRoot, `\`) + `\` + strings.Join(parts, `\`), true
+	}
+	return strings.TrimRight(plexLibraryRoot, "/") + "/" + strings.Join(parts, "/"), true
+}
+
+func pathsEquivalent(a, b string) bool {
+	a = strings.TrimRight(strings.TrimSpace(a), `/\`)
+	b = strings.TrimRight(strings.TrimSpace(b), `/\`)
+	if a == "" || b == "" {
+		return false
+	}
+	return strings.EqualFold(a, b)
 }
 
 func (dm *DownloadManager) getPlexScanSettings(ctx context.Context) (string, string, string) {
