@@ -275,9 +275,15 @@ func ginLogger() gin.HandlerFunc {
 		start := time.Now()
 		c.Next()
 		latency := time.Since(start)
-		latencyMs := float64(latency) / float64(time.Millisecond)
 		path := c.Request.URL.Path
-
+		realIP := c.GetHeader("X-Real-IP")
+		if realIP == "" {
+			realIP = c.GetHeader("X-Forwarded-For")
+		}
+		if realIP == "" {
+			realIP = c.ClientIP()
+		}
+		
 		// /api/events is a long-lived SSE stream; duration mostly reflects
 		// connection lifetime rather than handler slowness.
 		if path == "/api/events" {
@@ -285,7 +291,7 @@ func ginLogger() gin.HandlerFunc {
 				Int("status", c.Writer.Status()).
 				Str("method", c.Request.Method).
 				Str("path", path).
-				Float64("stream_duration_ms", latencyMs).
+				Str("from", realIP).
 				Dur("stream_duration", latency).
 				Msg("sse stream closed")
 			return
@@ -299,10 +305,11 @@ func ginLogger() gin.HandlerFunc {
 		evt.
 			Int("status", c.Writer.Status()).
 			Str("method", c.Request.Method).
+			Str("from", realIP).
 			Str("path", path).
-			Float64("latency_ms", latencyMs).
 			Dur("latency", latency).
-			Msg("request")
+			// Include proxyied real ip if present, since c.ClientIP() will return the proxy's IP.
+			Msg(c.Request.Method + " request from " + realIP + " to " + path)
 	}
 }
 
