@@ -10,7 +10,8 @@ import (
 
 // TestRealAudnexusNaming tests the naming functions against real Audnexus API data.
 // This is an integration test that makes real API calls.
-// Run with: go test -run TestRealAudnexusNaming
+// Run from repo root with: go test -run TestRealAudnexusNaming ./internal/organizer/...
+// Or all packages with: go test -run TestRealAudnexusNaming ./...
 func TestRealAudnexusNaming(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
