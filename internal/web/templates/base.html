@@ -206,9 +206,21 @@
                 el.innerHTML = html;
                 if (window.htmx) htmx.process(el);
             } else if (d.status === 'complete') {
-                var html = '<div class="sync-status-container"><span class="status-msg success">' + (d.message || 'Sync complete') + '</span>';
-                if (d.books_added > 0) html += '<span class="sync-detail">&mdash; ' + d.books_added + ' new books added</span>';
-                if (d.plex_scanned) html += '<span class="sync-detail">&mdash; Plex scan triggered</span>';
+                var html = '<div class="sync-status-container"><div class="sync-header"><span class="status-msg success">' + (d.message || 'Sync complete') + '</span></div>';
+                if (d.phases && d.phases.length > 0) {
+                    html += '<div class="sync-phases">';
+                    for (var i = 0; i < d.phases.length; i++) {
+                        var p = d.phases[i];
+                        if (p.status === 'complete') {
+                            html += '<div class="sync-phase complete"><span class="phase-icon">&#10003;</span><span class="phase-label">' + p.label + '</span>';
+                            if (p.message) html += '<span class="phase-detail">' + p.message + '</span>';
+                            html += '</div>';
+                        } else if (p.status === 'skipped') {
+                            html += '<div class="sync-phase skipped"><span class="phase-icon">&#8212;</span><span class="phase-label">' + p.label + '</span><span class="phase-detail">' + (p.message || '') + '</span></div>';
+                        }
+                    }
+                    html += '</div>';
+                }
                 html += '</div>';
                 el.innerHTML = html;
             }

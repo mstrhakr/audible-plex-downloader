@@ -412,6 +412,21 @@ func (s *SyncService) setPhase(phase SyncPhase, status, message string) {
 				s.progress.Phases[i].StartedAt = now
 			}
 			if status == "complete" || status == "failed" || status == "skipped" {
+				// Ensure phase is visible for at least 1 second from when it started running
+				if !s.progress.Phases[i].StartedAt.IsZero() {
+					elapsed := now.Sub(s.progress.Phases[i].StartedAt)
+					minDuration := time.Second
+					if elapsed < minDuration {
+						// Schedule the actual transition after the minimum duration
+						remainingSleep := minDuration - elapsed
+						s.progress.Phases[i].EndedAt = now
+						s.emitLocked()
+						s.mu.Unlock()
+						time.Sleep(remainingSleep)
+						s.mu.Lock()
+						now = time.Now()
+					}
+				}
 				s.progress.Phases[i].EndedAt = now
 			}
 			if status == "failed" {

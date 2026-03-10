@@ -55,9 +55,28 @@
 </div>
 {{else if eq .Status "complete"}}
 <div class="sync-status-container">
-	<span class="status-msg success">{{.Message}}</span>
-	{{if .BooksAdded}}<span class="sync-detail">&mdash; {{.BooksAdded}} new books added</span>{{end}}
-	{{if .PlexScanned}}<span class="sync-detail">&mdash; Plex scan triggered</span>{{end}}
+	<div class="sync-header">
+		<span class="status-msg success">{{.Message}}</span>
+	</div>
+	{{if .Phases}}
+	<div class="sync-phases">
+		{{range .Phases}}
+		{{if eq .Status "complete"}}
+		<div class="sync-phase complete">
+			<span class="phase-icon">&#10003;</span>
+			<span class="phase-label">{{.Label}}</span>
+			{{if .Message}}<span class="phase-detail">{{.Message}}</span>{{end}}
+		</div>
+		{{else if eq .Status "skipped"}}
+		<div class="sync-phase skipped">
+			<span class="phase-icon">&#8212;</span>
+			<span class="phase-label">{{.Label}}</span>
+			<span class="phase-detail">{{.Message}}</span>
+		</div>
+		{{end}}
+		{{end}}
+	</div>
+	{{end}}
 </div>
 {{else if .Message}}
 <span class="status-msg {{if eq .Status "complete"}}success{{else if eq .Status "failed"}}error{{end}}">{{.Message}}</span>
