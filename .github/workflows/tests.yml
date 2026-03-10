@@ -35,6 +35,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache-dependency-path: audible-plex-downloader/go.sum
 
       - name: Run tests
         working-directory: audible-plex-downloader
