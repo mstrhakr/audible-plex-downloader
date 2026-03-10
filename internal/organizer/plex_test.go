@@ -4,36 +4,94 @@ import "testing"
 
 func TestBuildFilenameBase(t *testing.T) {
 	tests := []struct {
-		name   string
-		title  string
-		author string
-		want   string
+		name           string
+		title          string
+		subtitle       string
+		series         string
+		seriesPosition string
+		asin           string
+		region         string
+		want           string
 	}{
 		{
-			name:   "title and author",
-			title:  "Harry Potter and the Goblet of Fire",
-			author: "J.K. Rowling",
-			want:   "Harry Potter and the Goblet of Fire - J.K. Rowling",
+			name:           "title subtitle series asin and region",
+			title:          "Harry Potter and the Goblet of Fire",
+			subtitle:       "Book 4",
+			series:         "Harry Potter",
+			seriesPosition: "4",
+			asin:           "B017V4IM1G",
+			region:         "us",
+			want:           "Harry Potter and the Goblet of Fire: Book 4 - Harry Potter 4 B017V4IM1G [us]",
 		},
 		{
-			name:   "title only when author missing",
-			title:  "Leviathan Wakes",
-			author: "",
-			want:   "Leviathan Wakes",
+			name:  "title and asin without series or region",
+			title: "Leviathan Wakes",
+			asin:  "B073H9PF2D",
+			want:  "Leviathan Wakes B073H9PF2D",
 		},
 		{
-			name:   "unknown title fallback",
-			title:  "",
-			author: "James S. A. Corey",
-			want:   "Unknown Title - James S. A. Corey",
+			name:   "title with series but no asin",
+			title:  "Project Hail Mary",
+			series: "Standalone",
+			want:   "Project Hail Mary - Standalone",
+		},
+		{
+			name:  "unknown title fallback",
+			title: "",
+			want:  "Unknown Title",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildFilenameBase(tt.title, tt.author)
+			got := buildFilenameBase(tt.title, tt.subtitle, tt.series, tt.seriesPosition, tt.asin, tt.region)
 			if got != tt.want {
 				t.Fatalf("buildFilenameBase() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildBookDirectoryName(t *testing.T) {
+	tests := []struct {
+		name   string
+		title  string
+		asin   string
+		region string
+		want   string
+	}{
+		{
+			name:   "title with asin and region",
+			title:  "Project Hail Mary",
+			asin:   "B08GB58KD5",
+			region: "us",
+			want:   "Project Hail Mary B08GB58KD5 [us]",
+		},
+		{
+			name:  "title with asin no region",
+			title: "Project Hail Mary",
+			asin:  "B08GB58KD5",
+			want:  "Project Hail Mary B08GB58KD5",
+		},
+		{
+			name:  "title only when asin missing",
+			title: "Project Hail Mary",
+			asin:  "",
+			want:  "Project Hail Mary",
+		},
+		{
+			name:  "unknown title fallback",
+			title: "",
+			asin:  "B08GB58KD5",
+			want:  "Unknown Title B08GB58KD5",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildBookDirectoryName(tt.title, tt.asin, tt.region)
+			if got != tt.want {
+				t.Fatalf("buildBookDirectoryName() = %q, want %q", got, tt.want)
 			}
 		})
 	}

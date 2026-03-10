@@ -40,7 +40,8 @@ func NewPlexOrganizer(db database.Database, ffmpeg *audio.FFmpeg, libraryRoot st
 }
 
 // Organize takes a decrypted audiobook file and moves it into the Plex library structure.
-// Structure: {libraryRoot}/{Author}/{Title}/{Title - Author}.m4b
+// Structure: {libraryRoot}/{Author}/{Title ASIN [region]}/{Title: Subtitle - Series Position ASIN [region]}.m4b
+// Region, subtitle, and series are optional.
 // Optionally embeds metadata, cover art, and generates a chapters file.
 func (o *PlexOrganizer) Organize(ctx context.Context, book *database.Book, enriched *audnexus.EnrichedBook, inputPath string) (string, error) {
 	return o.OrganizeWithProgress(ctx, book, enriched, inputPath, nil)
@@ -54,6 +55,11 @@ func (o *PlexOrganizer) OrganizeWithProgress(ctx context.Context, book *database
 	_ = ctx
 	author := strings.TrimSpace(enriched.Author())
 	title := strings.TrimSpace(enriched.Title())
+	subtitle := strings.TrimSpace(enriched.Subtitle())
+	series := strings.TrimSpace(enriched.Series())
+	seriesPosition := strings.TrimSpace(enriched.SeriesPosition())
+	asin := strings.TrimSpace(book.ASIN)
+	region := strings.TrimSpace(enriched.Region())
 
 	if author == "" {
 		author = "Unknown Author"
@@ -61,10 +67,11 @@ func (o *PlexOrganizer) OrganizeWithProgress(ctx context.Context, book *database
 	if title == "" {
 		title = "Unknown Title"
 	}
-	filenameBase := buildFilenameBase(title, author)
+	filenameBase := buildFilenameBase(title, subtitle, series, seriesPosition, asin, region)
+	bookDirName := buildBookDirectoryName(title, asin, region)
 
 	// Always use the configured libraryRoot for file placement
-	bookDir := filepath.Join(o.libraryRoot, sanitizePath(author), sanitizePath(title))
+	bookDir := filepath.Join(o.libraryRoot, sanitizePath(author), sanitizePath(bookDirName))
 	if err := os.MkdirAll(bookDir, 0750); err != nil {
 		return "", fmt.Errorf("create book directory: %w", err)
 	}
@@ -128,17 +135,60 @@ func (o *PlexOrganizer) OrganizeWithProgress(ctx context.Context, book *database
 	return finalPath, nil
 }
 
-// buildFilenameBase builds a Plex-friendly filename in "Title - Author" format.
-func buildFilenameBase(title, author string) string {
+// buildFilenameBase builds a Plex-friendly filename with ASIN and optional region for easier scanning.
+// Output: "Title: Subtitle - SeriesName SeriesPosition ASIN [regionCode]" (subtitle/series/region are optional).
+func buildFilenameBase(title, subtitle, series, seriesPosition, asin, region string) string {
 	title = strings.TrimSpace(title)
-	author = strings.TrimSpace(author)
+	subtitle = strings.TrimSpace(subtitle)
+	series = strings.TrimSpace(series)
+	seriesPosition = strings.TrimSpace(seriesPosition)
+	asin = strings.TrimSpace(asin)
+	region = strings.TrimSpace(region)
+
 	if title == "" {
 		title = "Unknown Title"
 	}
-	if author == "" {
-		return title
+
+	base := title
+	if subtitle != "" {
+		base = base + ": " + subtitle
 	}
-	return fmt.Sprintf("%s - %s", title, author)
+	if series != "" {
+		base = base + " - " + series
+		if seriesPosition != "" {
+			base = base + " " + seriesPosition
+		}
+	}
+	if asin != "" {
+		base = base + " " + asin
+	}
+	if region != "" {
+		base = base + " [" + region + "]"
+	}
+
+	return base
+}
+
+// buildBookDirectoryName builds the book folder name with ASIN and optional region.
+// Output: "Title ASIN [regionCode]" or just "Title" when ASIN is missing.
+func buildBookDirectoryName(title, asin, region string) string {
+	title = strings.TrimSpace(title)
+	asin = strings.TrimSpace(asin)
+	region = strings.TrimSpace(region)
+
+	if title == "" {
+		title = "Unknown Title"
+	}
+
+	base := title
+	if asin != "" {
+		base = base + " " + asin
+	}
+	if region != "" {
+		base = base + " [" + region + "]"
+	}
+
+	return base
 }
 
 // writeChaptersFile writes a Plex-compatible chapters.txt file.
