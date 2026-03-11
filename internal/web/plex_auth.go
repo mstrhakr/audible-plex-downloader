@@ -129,16 +129,6 @@ type plexActivity struct {
 	Progress    float64 `json:"progress"` // -1 means indeterminate
 }
 
-// PlexScanStatus represents the status of a Plex library scan.
-type PlexScanStatus struct {
-	Scanning    bool    `json:"scanning"`
-	Progress    float64 `json:"progress"` // 0-100, or -1 for indeterminate
-	Title       string  `json:"title"`
-	Subtitle    string  `json:"subtitle"`
-	Cancellable bool    `json:"cancellable"`
-	ActivityID  string  `json:"activity_id,omitempty"`
-}
-
 func (s *Server) plexClientID() string {
 	hostname, _ := os.Hostname()
 	hostname = strings.TrimSpace(strings.ToLower(hostname))
@@ -762,34 +752,6 @@ func (s *Server) plexGetActivities(ctx context.Context, plexURL, token string) (
 	}
 
 	return activitiesResp.MediaContainer.Activities, nil
-}
-
-// plexGetScanStatus checks Plex activities for any library-related scanning activity.
-func (s *Server) plexGetScanStatus(ctx context.Context, plexURL, token string) (PlexScanStatus, error) {
-	activities, err := s.plexGetActivities(ctx, plexURL, token)
-	if err != nil {
-		return PlexScanStatus{}, err
-	}
-
-	// Look for library scanning activities
-	// Common types: "library.update.section", "library.scan", "library.refresh"
-	for _, act := range activities {
-		actType := strings.ToLower(act.Type)
-		if strings.Contains(actType, "library") ||
-			strings.Contains(actType, "scan") ||
-			strings.Contains(actType, "refresh") {
-			return PlexScanStatus{
-				Scanning:    true,
-				Progress:    act.Progress,
-				Title:       act.Title,
-				Subtitle:    act.Subtitle,
-				Cancellable: act.Cancellable,
-				ActivityID:  act.UUID,
-			}, nil
-		}
-	}
-
-	return PlexScanStatus{Scanning: false}, nil
 }
 
 // PlexItem represents an item in the Plex library.
