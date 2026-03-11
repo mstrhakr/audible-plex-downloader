@@ -220,7 +220,7 @@ To create a new release with automated binary builds and Docker images:
 
   ```bash
   git commit --allow-empty -m "chore: release v0.1.4"
-  git tag -a v0.1.4"
+  git tag v0.1.4
   git push origin v0.1.4
   ```
 
