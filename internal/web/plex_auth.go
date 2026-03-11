@@ -808,9 +808,9 @@ type plexAlbumsResponse struct {
 }
 
 type plexAlbumsContainer struct {
-	Size      int            `json:"size"`
-	TotalSize int            `json:"totalSize"`
-	Metadata  []plexAlbumMD  `json:"Metadata"`
+	Size      int           `json:"size"`
+	TotalSize int           `json:"totalSize"`
+	Metadata  []plexAlbumMD `json:"Metadata"`
 }
 
 type plexAlbumMD struct {
@@ -827,7 +827,7 @@ func (s *Server) plexListSectionItems(ctx context.Context, plexURL, token, secti
 	if limit <= 0 {
 		limit = 10000 // reasonable max for audiobook libraries
 	}
-	
+
 	u, err := buildPlexURL(plexURL, "/library/sections/"+url.PathEscape(sectionID)+"/albums", token, map[string]string{
 		"X-Plex-Container-Start": "0",
 		"X-Plex-Container-Size":  strconv.Itoa(limit),

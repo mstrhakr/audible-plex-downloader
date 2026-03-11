@@ -1394,32 +1394,32 @@ func (s *Server) handleAuthStatus(c *gin.Context) {
 
 // DiagnosticItem represents a book with its status across database, disk, and Plex.
 type DiagnosticItem struct {
-	ASIN         string `json:"asin"`
-	Title        string `json:"title"`
-	Author       string `json:"author"`
-	Region       string `json:"region,omitempty"`
-	Status       string `json:"status"`
-	InDatabase   bool   `json:"in_database"`
-	OnDisk       bool   `json:"on_disk"`
-	InPlex       bool   `json:"in_plex"`
-	FilePath     string `json:"file_path,omitempty"`
-	FileExists   bool   `json:"file_exists"`
-	PlexTitle    string `json:"plex_title,omitempty"` // Matching title found in Plex
-	Issue        string `json:"issue,omitempty"`      // Description of what's wrong
-	CanRedownload bool  `json:"can_redownload"`
+	ASIN          string `json:"asin"`
+	Title         string `json:"title"`
+	Author        string `json:"author"`
+	Region        string `json:"region,omitempty"`
+	Status        string `json:"status"`
+	InDatabase    bool   `json:"in_database"`
+	OnDisk        bool   `json:"on_disk"`
+	InPlex        bool   `json:"in_plex"`
+	FilePath      string `json:"file_path,omitempty"`
+	FileExists    bool   `json:"file_exists"`
+	PlexTitle     string `json:"plex_title,omitempty"` // Matching title found in Plex
+	Issue         string `json:"issue,omitempty"`      // Description of what's wrong
+	CanRedownload bool   `json:"can_redownload"`
 }
 
 // DiagnosticsResponse contains the full comparison data.
 type DiagnosticsResponse struct {
-	TotalBooks       int              `json:"total_books"`
-	CompleteBooks    int              `json:"complete_books"`
-	PlexItems        int              `json:"plex_items"`
-	FilesOnDisk      int              `json:"files_on_disk"`
-	MissingFromPlex  int              `json:"missing_from_plex"`
-	MissingFromDisk  int              `json:"missing_from_disk"`
-	RegionIssues     int              `json:"region_issues"`
-	UserMarketplace  string           `json:"user_marketplace"`
-	Items            []DiagnosticItem `json:"items"`
+	TotalBooks      int              `json:"total_books"`
+	CompleteBooks   int              `json:"complete_books"`
+	PlexItems       int              `json:"plex_items"`
+	FilesOnDisk     int              `json:"files_on_disk"`
+	MissingFromPlex int              `json:"missing_from_plex"`
+	MissingFromDisk int              `json:"missing_from_disk"`
+	RegionIssues    int              `json:"region_issues"`
+	UserMarketplace string           `json:"user_marketplace"`
+	Items           []DiagnosticItem `json:"items"`
 }
 
 // handleDiagnostics renders the diagnostics page.
@@ -1493,12 +1493,12 @@ func (s *Server) handleDiagnosticsCompare(c *gin.Context) {
 		}
 
 		item := DiagnosticItem{
-			ASIN:        book.ASIN,
-			Title:       book.Title,
-			Author:      book.Author,
-			Status:      string(book.Status),
-			InDatabase:  true,
-			FilePath:    book.FilePath,
+			ASIN:          book.ASIN,
+			Title:         book.Title,
+			Author:        book.Author,
+			Status:        string(book.Status),
+			InDatabase:    true,
+			FilePath:      book.FilePath,
 			CanRedownload: true, // All complete books can be redownloaded
 		}
 
@@ -1563,15 +1563,15 @@ func (s *Server) handleDiagnosticsCompare(c *gin.Context) {
 	}
 
 	response := DiagnosticsResponse{
-		TotalBooks:       totalCount,
-		CompleteBooks:    completeCount,
-		PlexItems:        len(plexItems),
-		FilesOnDisk:      filesOnDisk,
-		MissingFromPlex:  missingFromPlex,
-		MissingFromDisk:  missingFromDisk,
-		RegionIssues:     regionIssues,
-		UserMarketplace:  marketplace,
-		Items:            items,
+		TotalBooks:      totalCount,
+		CompleteBooks:   completeCount,
+		PlexItems:       len(plexItems),
+		FilesOnDisk:     filesOnDisk,
+		MissingFromPlex: missingFromPlex,
+		MissingFromDisk: missingFromDisk,
+		RegionIssues:    regionIssues,
+		UserMarketplace: marketplace,
+		Items:           items,
 	}
 
 	c.JSON(http.StatusOK, response)
