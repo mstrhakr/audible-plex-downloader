@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-03-10
+
 ### Added
 
 - Docker support with automated GitHub Actions publishing to ghcr.io
@@ -43,5 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker containerization
 - Scheduled library sync
 
-[Unreleased]: https://github.com/mstrhakr/audible-plex-downloader/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mstrhakr/audible-plex-downloader/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/mstrhakr/audible-plex-downloader/releases/tag/v0.1.4
 [0.1.0]: https://github.com/mstrhakr/audible-plex-downloader/releases/tag/v0.1.0

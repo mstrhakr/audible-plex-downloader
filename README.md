@@ -146,9 +146,9 @@ docker compose -f compose.postgres.yaml up -d
 
 ### Available Docker Tags
 
-When you tag a release like `v0.1.2`, the following images are automatically published:
+When you tag a release like `v0.1.4`, the following images are automatically published:
 
-- **Exact version:** `v0.1.2`, `0.1.2`
+- **Exact version:** `v0.1.4`, `0.1.4`
 - **Floating minor:** `v0.1`, `0.1` (tracks latest patch in 0.1.x)
 - **Floating major:** `v0`, `0` (tracks latest in 0.x.x)
 - **Latest:** `latest` (latest release from main/master)
@@ -156,6 +156,7 @@ When you tag a release like `v0.1.2`, the following images are automatically pub
 - **Commit-specific:** `master-sha-abc123`
 
 Example usage:
+
 ```bash
 # Use latest stable release
 docker pull ghcr.io/mstrhakr/audible-plex-downloader:latest
@@ -167,7 +168,7 @@ docker pull ghcr.io/mstrhakr/audible-plex-downloader:v0
 docker pull ghcr.io/mstrhakr/audible-plex-downloader:v0.1
 
 # Pin to exact version (never changes)
-docker pull ghcr.io/mstrhakr/audible-plex-downloader:v0.1.2
+docker pull ghcr.io/mstrhakr/audible-plex-downloader:v0.1.4
 ```
 
 Images are automatically built and published via GitHub Actions on every push to main/master and on tagged releases.
@@ -216,18 +217,19 @@ Requires Go 1.22+. Uses pure Go SQLite implementation (modernc.org/sqlite), so n
 To create a new release with automated binary builds and Docker images:
 
 1. **Tag the release:**
-   ```bash
-   git tag -a v0.1.0 -m "Release v0.1.0"
-   git push origin v0.1.0
-   ```
 
-2. **Automated actions:**
-   - GitHub Actions builds binaries for Linux, macOS, and Windows (amd64 + arm64)
-   - Creates a GitHub Release with downloadable archives
-   - Builds and publishes Docker images with floating tags:
-     - `latest`, `v0`, `v0.1`, `v0.1.0`, `0`, `0.1`, `0.1.0`
+  ```bash
+  git tag -a v0.1.4 -m "Release v0.1.4"
+  git push origin v0.1.4
+  ```
 
-All releases are available at: https://github.com/mstrhakr/audible-plex-downloader/releases
+1. **Automated actions:**
+
+- GitHub Actions builds binaries for Linux, macOS, and Windows (amd64 + arm64)
+- Creates a GitHub Release with downloadable archives
+- Builds and publishes Docker images with floating tags: `latest`, `v0`, `v0.1`, `v0.1.4`, `0`, `0.1`, `0.1.4`
+
+All releases are available at: <https://github.com/mstrhakr/audible-plex-downloader/releases>
 
 ## License
 
