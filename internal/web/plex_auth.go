@@ -529,7 +529,8 @@ func (s *Server) plexSearchCount(ctx context.Context, plexURL, token, query stri
 }
 
 func (s *Server) plexSectionItemCount(ctx context.Context, plexURL, token, sectionID string) (int, error) {
-	u, err := buildPlexURL(plexURL, "/library/sections/"+url.PathEscape(sectionID)+"/all", token, map[string]string{
+	// Audiobooks in Plex music libraries are represented as albums, not artists.
+	u, err := buildPlexURL(plexURL, "/library/sections/"+url.PathEscape(sectionID)+"/albums", token, map[string]string{
 		"X-Plex-Container-Start": "0",
 		"X-Plex-Container-Size":  "0",
 	})
