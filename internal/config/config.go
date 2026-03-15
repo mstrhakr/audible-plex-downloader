@@ -41,7 +41,7 @@ type PathsConfig struct {
 }
 
 type OutputConfig struct {
-	Format        string `yaml:"format"`         // "m4b" or "mp3"
+	Format        string `yaml:"format"` // "m4b" or "mp3"
 	EmbedCover    bool   `yaml:"embed_cover"`
 	ChapterFile   bool   `yaml:"chapter_file"`
 	PlexMatchFile bool   `yaml:"plexmatch_file"` // write .plexmatch hint files for perfect Plex scanning

@@ -22,13 +22,13 @@ var orgLog = logging.Component("organizer")
 
 // PlexOrganizer handles organizing audiobook files into Plex-compatible structure.
 type PlexOrganizer struct {
-	db             database.Database
-	ffmpeg         *audio.FFmpeg
-	libraryRoot    string
-	embedCover     bool
-	chapterFile    bool
-	plexMatchFile  bool
-	mu             sync.RWMutex
+	db            database.Database
+	ffmpeg        *audio.FFmpeg
+	libraryRoot   string
+	embedCover    bool
+	chapterFile   bool
+	plexMatchFile bool
+	mu            sync.RWMutex
 }
 
 // NewPlexOrganizer creates a new Plex file organizer.
