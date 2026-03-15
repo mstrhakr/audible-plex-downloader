@@ -93,7 +93,7 @@ func main() {
 	syncSvc := library.NewSyncService(db, audibleClient, cfg.Paths.Audiobooks)
 	anClient := audnexus.NewClientWithRegion(region)
 	log.Info().Str("region", region).Msg("audnexus client initialized with region")
-	org := organizer.NewPlexOrganizer(db, ffmpeg, cfg.Paths.Audiobooks, cfg.Output.EmbedCover, cfg.Output.ChapterFile)
+	org := organizer.NewPlexOrganizer(db, ffmpeg, cfg.Paths.Audiobooks, cfg.Output.EmbedCover, cfg.Output.ChapterFile, cfg.Output.PlexMatchFile)
 	dlMgr := library.NewDownloadManager(
 		db,
 		audibleClient,
@@ -197,6 +197,7 @@ func applyDBSettings(db database.Database, cfg *config.Config) {
 	cfg.Output.Format = resolveStringSetting(ctx, db, "output_format", cfg.Output.Format)
 	cfg.Output.EmbedCover = resolveBoolSetting(ctx, db, "embed_cover", cfg.Output.EmbedCover)
 	cfg.Output.ChapterFile = resolveBoolSetting(ctx, db, "chapter_file", cfg.Output.ChapterFile)
+	cfg.Output.PlexMatchFile = resolveBoolSetting(ctx, db, "plexmatch_file", cfg.Output.PlexMatchFile)
 
 	cfg.Sync.Schedule = resolveStringSetting(ctx, db, "sync_schedule", cfg.Sync.Schedule)
 	cfg.Sync.Enabled = resolveBoolSetting(ctx, db, "sync_enabled", cfg.Sync.Enabled)

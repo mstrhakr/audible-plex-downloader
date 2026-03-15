@@ -22,22 +22,24 @@ var orgLog = logging.Component("organizer")
 
 // PlexOrganizer handles organizing audiobook files into Plex-compatible structure.
 type PlexOrganizer struct {
-	db          database.Database
-	ffmpeg      *audio.FFmpeg
-	libraryRoot string
-	embedCover  bool
-	chapterFile bool
-	mu          sync.RWMutex
+	db             database.Database
+	ffmpeg         *audio.FFmpeg
+	libraryRoot    string
+	embedCover     bool
+	chapterFile    bool
+	plexMatchFile  bool
+	mu             sync.RWMutex
 }
 
 // NewPlexOrganizer creates a new Plex file organizer.
-func NewPlexOrganizer(db database.Database, ffmpeg *audio.FFmpeg, libraryRoot string, embedCover, chapterFile bool) *PlexOrganizer {
+func NewPlexOrganizer(db database.Database, ffmpeg *audio.FFmpeg, libraryRoot string, embedCover, chapterFile, plexMatchFile bool) *PlexOrganizer {
 	return &PlexOrganizer{
-		db:          db,
-		ffmpeg:      ffmpeg,
-		libraryRoot: libraryRoot,
-		embedCover:  embedCover,
-		chapterFile: chapterFile,
+		db:            db,
+		ffmpeg:        ffmpeg,
+		libraryRoot:   libraryRoot,
+		embedCover:    embedCover,
+		chapterFile:   chapterFile,
+		plexMatchFile: plexMatchFile,
 	}
 }
 
@@ -52,6 +54,13 @@ func (o *PlexOrganizer) SetEmbedCover(v bool) {
 func (o *PlexOrganizer) SetChapterFile(v bool) {
 	o.mu.Lock()
 	o.chapterFile = v
+	o.mu.Unlock()
+}
+
+// SetPlexMatchFile updates the plexmatch file setting at runtime.
+func (o *PlexOrganizer) SetPlexMatchFile(v bool) {
+	o.mu.Lock()
+	o.plexMatchFile = v
 	o.mu.Unlock()
 }
 
@@ -116,6 +125,18 @@ func (o *PlexOrganizer) OrganizeWithProgress(ctx context.Context, book *database
 		_ = os.Remove(inputPath)
 	} else if onMoveProgress != nil {
 		onMoveProgress(totalBytes, totalBytes)
+	}
+
+	// Generate .plexmatch hint file for perfect Plex library scanning.
+	o.mu.RLock()
+	wantPlexMatch := o.plexMatchFile
+	o.mu.RUnlock()
+	if wantPlexMatch {
+		if err := writePlexMatchFile(bookDir, enriched, book); err != nil {
+			orgLog.Warn().Err(err).Msg("failed to write .plexmatch file")
+		} else {
+			orgLog.Debug().Str("path", filepath.Join(bookDir, ".plexmatch")).Msg(".plexmatch file written")
+		}
 	}
 
 	// Generate chapters file
@@ -208,6 +229,44 @@ func buildBookDirectoryName(title, asin, region string) string {
 	}
 
 	return base
+}
+
+// writePlexMatchFile writes a .plexmatch YAML hint file in the book directory.
+// Plex reads this file during library scans to match the audiobook directly to
+// the correct Audible entry by ASIN, guaranteeing accurate metadata every time.
+// Format reference: https://support.plex.tv/articles/plexmatch/
+func writePlexMatchFile(bookDir string, enriched *audnexus.EnrichedBook, book *database.Book) error {
+	asin := strings.TrimSpace(book.ASIN)
+	if asin == "" {
+		return nil // no ASIN, nothing useful to write
+	}
+
+	f, err := os.Create(filepath.Join(bookDir, ".plexmatch"))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	title := enriched.Title()
+	fmt.Fprintf(f, "title: %s\n", plexMatchYAMLValue(title))
+
+	if !book.ReleaseDate.IsZero() && book.ReleaseDate.Year() > 1 {
+		fmt.Fprintf(f, "year: %d\n", book.ReleaseDate.Year())
+	}
+
+	// hint: audible://<ASIN> tells Plex exactly which Audible entry to use.
+	fmt.Fprintf(f, "hint: audible://%s\n", asin)
+
+	return nil
+}
+
+// plexMatchYAMLValue returns a safely quoted YAML scalar value.
+// Double-quoting is used so that colons, special chars, and Unicode in titles
+// are handled correctly without requiring an external YAML library.
+func plexMatchYAMLValue(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	return `"` + s + `"`
 }
 
 // writeChaptersFile writes a Plex-compatible chapters.txt file.

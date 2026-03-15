@@ -633,6 +633,7 @@ func (s *Server) settingsPageData(ctx context.Context) gin.H {
 
 	embedCover := s.settingBool(ctx, "embed_cover", true)
 	chapterFile := s.settingBool(ctx, "chapter_file", true)
+	plexMatchFile := s.settingBool(ctx, "plexmatch_file", true)
 	downloadConcurrency := s.settingInt(ctx, "download_concurrency", 0)
 	decryptConcurrency := s.settingInt(ctx, "decrypt_concurrency", 0)
 	processConcurrency := s.settingInt(ctx, "process_concurrency", 0)
@@ -652,6 +653,7 @@ func (s *Server) settingsPageData(ctx context.Context) gin.H {
 		"PlexSectionPath":      plexSectionPath,
 		"EmbedCover":           embedCover,
 		"ChapterFile":          chapterFile,
+		"PlexMatchFile":        plexMatchFile,
 		"DownloadConcurrency":  downloadConcurrency,
 		"DecryptConcurrency":   decryptConcurrency,
 		"ProcessConcurrency":   processConcurrency,
@@ -1046,6 +1048,11 @@ func (s *Server) handleSaveSettings(c *gin.Context) {
 		v := c.PostForm("chapter_file") == "true"
 		_ = s.db.SetSetting(ctx, "chapter_file", fmt.Sprintf("%t", v))
 		s.organizer.SetChapterFile(v)
+	}
+	if _, ok := c.GetPostForm("plexmatch_file_sent"); ok {
+		v := c.PostForm("plexmatch_file") == "true"
+		_ = s.db.SetSetting(ctx, "plexmatch_file", fmt.Sprintf("%t", v))
+		s.organizer.SetPlexMatchFile(v)
 	}
 
 	if level := c.PostForm("log_level"); level != "" {

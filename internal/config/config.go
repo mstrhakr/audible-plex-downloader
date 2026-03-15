@@ -41,9 +41,10 @@ type PathsConfig struct {
 }
 
 type OutputConfig struct {
-	Format      string `yaml:"format"` // "m4b" or "mp3"
-	EmbedCover  bool   `yaml:"embed_cover"`
-	ChapterFile bool   `yaml:"chapter_file"`
+	Format        string `yaml:"format"`         // "m4b" or "mp3"
+	EmbedCover    bool   `yaml:"embed_cover"`
+	ChapterFile   bool   `yaml:"chapter_file"`
+	PlexMatchFile bool   `yaml:"plexmatch_file"` // write .plexmatch hint files for perfect Plex scanning
 }
 
 type DownloadConfig struct {
@@ -79,9 +80,10 @@ func DefaultConfig() *Config {
 			Config:     "/config",
 		},
 		Output: OutputConfig{
-			Format:      "m4b",
-			EmbedCover:  true,
-			ChapterFile: true,
+			Format:        "m4b",
+			EmbedCover:    true,
+			ChapterFile:   true,
+			PlexMatchFile: true,
 		},
 		Sync: SyncConfig{
 			Schedule: "0 */6 * * *",

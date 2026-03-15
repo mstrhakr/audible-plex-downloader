@@ -18,6 +18,7 @@ output:
   format: m4b  # m4b | mp3
   embed_cover: true
   chapter_file: true
+  plexmatch_file: true  # write .plexmatch hint files for perfect Plex library scanning
 
 download:
   # Worker counts are startup settings. Save in UI, then restart to apply.

@@ -258,6 +258,16 @@
             </div>
 
             <div class="form-group">
+                <label for="plexmatch_file">Generate PlexMatch Files</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="plexmatch_file" name="plexmatch_file" value="true" {{if .PlexMatchFile}}checked{{end}}>
+                    <span class="toggle-slider"></span>
+                </label>
+                <input type="hidden" name="plexmatch_file_sent" value="1">
+                <small>Write <code>.plexmatch</code> hint files in each book folder so Plex matches metadata by ASIN — 100% accurate scans every time</small>
+            </div>
+
+            <div class="form-group">
                 <label for="log_level">Log Level</label>
                 <select id="log_level" name="log_level">
                     <option value="trace" {{if eq .LogLevel "trace"}}selected{{end}}>Trace</option>
