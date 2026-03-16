@@ -368,15 +368,17 @@
                         details = parts.length > 0 ? '<div class="dl-details">' + parts.join(' &middot; ') + '</div>' : '';
                     } else if (stage === 'waiting_decrypt' || stage === 'waiting_moving') {
                         var waitingParts = [];
-                        if (d.queue_depth > 0) waitingParts.push('queue ' + d.queue_depth);
-                        if (pct > 0) waitingParts.push('stage done');
+                        if (d.total_bytes > 0) {
+                            waitingParts.push(fmtBytes(d.total_bytes) + ' completed');
+                        }
                         details = waitingParts.length > 0 ? '<div class="dl-details">' + waitingParts.join(' &middot; ') + '</div>' : '';
                     }
 
                     var bClass = badgeClass[stage] || 'badge-warning';
+                    var isWaiting = (stage === 'waiting_decrypt' || stage === 'waiting_moving');
                     card.innerHTML = '<div class="dl-info"><strong>' + label + '</strong>' +
                         '<span class="badge ' + bClass + '">' + stageText +
-                        (pct > 0 ? ' ' + pct + '%' : '') +
+                        (!isWaiting && pct > 0 ? ' ' + pct + '%' : '') +
                         '</span></div>' + details +
                         ((stage === 'downloading' || stage === 'decrypting' || stage === 'processing' || stage === 'moving' || stage === 'waiting_decrypt' || stage === 'waiting_moving') ? '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>' : '');
                 } else if (d.type === 'complete') {
