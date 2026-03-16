@@ -46,3 +46,5 @@ logs/
 # Docker volumes
 docker-data/
 audible-plex-downloader.code-workspace
+go.work
+go.work.sum
