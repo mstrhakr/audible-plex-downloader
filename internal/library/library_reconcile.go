@@ -100,6 +100,14 @@ func reconcileExistingAudiobookFilesWithProgress(ctx context.Context, db databas
 		}
 		discoveredFiles[path] = info.Size()
 		discoveredByExt[ext]++
+
+		// Log each discovered file with its extracted ASIN for debug visibility
+		asin := extractASINFromPath(path)
+		if asin == "" {
+			syncLog.Debug().Str("path", path).Str("asin", "none").Msg("fs_scan: discovered audio file")
+		} else {
+			syncLog.Debug().Str("path", path).Str("asin", asin).Msg("fs_scan: discovered audio file")
+		}
 		return nil
 	})
 	if err != nil {
@@ -122,7 +130,25 @@ func reconcileExistingAudiobookFilesWithProgress(ctx context.Context, db databas
 	// Build an index of ASIN -> file path. Searches filename AND all parent directory
 	// components, matching the Audnexus.bundle behaviour.
 	asinFileIndex := buildASINFileIndex(discoveredFiles)
-	syncLog.Debug().Int("asin_index_entries", len(asinFileIndex)).Msg("fs_scan: ASIN index built")
+
+	// Log files without ASINs (these will likely not be matched)
+	filesWithoutASIN := make([]string, 0)
+	for path := range discoveredFiles {
+		if extractASINFromPath(path) == "" {
+			filesWithoutASIN = append(filesWithoutASIN, path)
+		}
+	}
+	if len(filesWithoutASIN) > 0 {
+		syncLog.Warn().
+			Int("count", len(filesWithoutASIN)).
+			Strs("files", filesWithoutASIN).
+			Msg("fs_scan: audio files discovered with no ASIN in path (will not be hard-matched)")
+	}
+
+	syncLog.Debug().
+		Int("asin_index_entries", len(asinFileIndex)).
+		Int("files_without_asin", len(filesWithoutASIN)).
+		Msg("fs_scan: ASIN index built")
 
 	// Phase 2: Load all books from the database
 	books, _, err := db.ListBooks(ctx, database.BookFilter{Limit: 10000, Offset: 0})
@@ -196,14 +222,10 @@ func reconcileExistingAudiobookFilesWithProgress(ctx context.Context, db databas
 	}
 
 	// Phase 4: Report on unmatched files (files on disk with no matching database book)
-	unmatchedCount := 0
-	unmatchedSamples := make([]string, 0, 10)
+	unmatchedFiles := make([]string, 0)
 	for filePath := range discoveredFiles {
 		if _, matched := matchedFiles[filePath]; !matched {
-			unmatchedCount++
-			if len(unmatchedSamples) < 10 {
-				unmatchedSamples = append(unmatchedSamples, filePath)
-			}
+			unmatchedFiles = append(unmatchedFiles, filePath)
 		}
 	}
 
@@ -211,15 +233,18 @@ func reconcileExistingAudiobookFilesWithProgress(ctx context.Context, db databas
 		Int("books_in_db", len(books)).
 		Int("audio_files_on_disk", len(discoveredFiles)).
 		Int("files_matched_to_book", len(matchedFiles)).
-		Int("files_unmatched", unmatchedCount).
+		Int("files_unmatched", len(unmatchedFiles)).
 		Int("complete_books_missing_file", missingCompleteBooks).
 		Int("books_updated", updated).
 		Msg("fs_scan: reconciliation complete")
 	syncLog.Debug().
 		Str("match_methods", formatCountMap(matchMethodCounts)).
 		Msg("fs_scan: match method breakdown")
-	if len(unmatchedSamples) > 0 {
-		syncLog.Debug().Strs("unmatched_samples", unmatchedSamples).Msg("fs_scan: sample unmatched audio files (no matching database book)")
+	if len(unmatchedFiles) > 0 {
+		syncLog.Warn().
+			Int("count", len(unmatchedFiles)).
+			Strs("files", unmatchedFiles).
+			Msg("fs_scan: unmatched audio files on disk (no matching database book found)")
 	}
 
 	return updated, nil
