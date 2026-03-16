@@ -340,6 +340,12 @@ func (dm *DownloadManager) handleProcessStage(ctx context.Context, item *pipelin
 
 	asinLog.Info().Str("path", finalPath).Msg("pipeline complete")
 	dm.triggerPlexScanForBook(finalPath)
+
+	// Add to a Plex collection named after the series (if any).
+	if enriched != nil {
+		dm.addBookToSeriesCollection(enriched.Series(), enriched.Title())
+	}
+
 	dm.emit(DownloadEvent{
 		ASIN:     item.ASIN,
 		BookID:   item.BookID,
