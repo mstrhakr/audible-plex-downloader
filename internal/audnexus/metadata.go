@@ -234,10 +234,10 @@ func (e *EnrichedBook) Language() string {
 
 // ToAudioMetadata builds an audio.Metadata struct from the merged data.
 func (e *EnrichedBook) ToAudioMetadata() audio.Metadata {
+	// Album must be the book title so Plex treats each audiobook as its own
+	// album. When album was set to the series name, Plex grouped every book
+	// in a series as tracks under one album.
 	album := e.Title()
-	if s := e.Series(); s != "" {
-		album = s
-	}
 
 	year := ""
 	if e.AudnexusBook != nil && e.AudnexusBook.ReleaseDate != "" {
