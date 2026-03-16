@@ -139,6 +139,9 @@ func (m *reconcileMockDB) UpsertBook(ctx context.Context, book *database.Book) e
 func (m *reconcileMockDB) UpdateBookStatus(ctx context.Context, id int64, status database.BookStatus) error {
 	return nil
 }
+func (m *reconcileMockDB) UpdateBookPlexInfo(ctx context.Context, id int64, plexRatingKey, plexTitle string) error {
+	return nil
+}
 func (m *reconcileMockDB) DeleteBook(ctx context.Context, id int64) error { return nil }
 func (m *reconcileMockDB) EnqueueDownload(ctx context.Context, item *database.DownloadQueue) error {
 	return nil
