@@ -80,6 +80,32 @@ func TestBuildASINFileIndexExtractsASINFromFilename(t *testing.T) {
 	}
 }
 
+func TestBuildASINFileIndexExtractsASINFromFolderOnly(t *testing.T) {
+	// File has a plain name with no ASIN; the ASIN is only in the parent folder name.
+	// This is the Audnexus.bundle pattern: "Title B0XXXXXXXXXX [us]/Title.m4b"
+	folderASINPath := filepath.Join("root", "Author Name", "Some Title B0FOLDER01 [us]", "Some Title.m4b")
+	files := map[string]int64{
+		folderASINPath: 500,
+	}
+
+	index := buildASINFileIndex(files)
+	if got := index["B0FOLDER01"]; got == "" {
+		t.Fatalf("buildASINFileIndex() should find ASIN in folder name but got empty; path=%q", folderASINPath)
+	}
+	if index["B0FOLDER01"] != folderASINPath {
+		t.Fatalf("buildASINFileIndex() path = %q, want %q", index["B0FOLDER01"], folderASINPath)
+	}
+}
+
+func TestExtractASINFromPathPrefersFilenameOverFolder(t *testing.T) {
+	// When both filename and folder contain ASINs, filename wins.
+	path := filepath.Join("root", "Author", "Title B0FOLDER01 [us]", "Title B0FILENA01.m4b")
+	got := extractASINFromPath(path)
+	if got != "B0FILENA01" {
+		t.Fatalf("extractASINFromPath() = %q, want %q (filename should take priority)", got, "B0FILENA01")
+	}
+}
+
 func TestFindBestFileForBookPrefersASINMatch(t *testing.T) {
 	root := filepath.Join("root")
 	asinFile := filepath.Join(root, "pirateaba", "Hell's Wardens B0DCCZ5MG2 [us]", "Hell's Wardens The Wandering Inn, Book 14 - The Wandering Inn 14 B0DCCZ5MG2 [us].m4b")
@@ -97,12 +123,15 @@ func TestFindBestFileForBookPrefersASINMatch(t *testing.T) {
 		Status: database.BookStatusNew,
 	}
 
-	matchedPath, matchedSize := findBestFileForBook(context.Background(), book, root, discovered, buildASINFileIndex(discovered))
+	matchedPath, matchedSize, matchMethod := findBestFileForBook(context.Background(), book, root, discovered, buildASINFileIndex(discovered))
 	if matchedPath != asinFile {
 		t.Fatalf("findBestFileForBook() path = %q, want %q", matchedPath, asinFile)
 	}
 	if matchedSize != 12345 {
 		t.Fatalf("findBestFileForBook() size = %d, want %d", matchedSize, 12345)
+	}
+	if matchMethod != "asin_path" {
+		t.Fatalf("findBestFileForBook() matchMethod = %q, want %q", matchMethod, "asin_path")
 	}
 }
 

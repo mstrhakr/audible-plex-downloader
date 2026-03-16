@@ -2,9 +2,11 @@ package library
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/mstrhakr/audible-plex-downloader/internal/database"
@@ -26,10 +28,14 @@ var supportedAudioExtensions = map[string]bool{
 	"opus": true, // Opus audio
 }
 
+// audioExtension returns the lowercase extension of a filename without the leading dot.
+func audioExtension(filename string) string {
+	return strings.ToLower(strings.TrimPrefix(filepath.Ext(filename), "."))
+}
+
 // isAudioFile checks if a filename has a supported audio extension
 func isAudioFile(filename string) bool {
-	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(filename), "."))
-	return supportedAudioExtensions[ext]
+	return supportedAudioExtensions[audioExtension(filename)]
 }
 
 // reconcileExistingAudiobookFiles scans the expected library layout and reconciles
@@ -49,16 +55,34 @@ func reconcileExistingAudiobookFilesWithProgress(ctx context.Context, db databas
 		return 0, nil
 	}
 
-	// Phase 1: Discover all audio files in the library
+	// Phase 1: Discover all audio files in the library.
+	// Mirrors Audnexus.bundle: the full path (folder names + filename) is searched
+	// for an ASIN so files under folders like "Title B0XXXXXXXXXX [us]/" are found.
 	discoveredFiles := make(map[string]int64) // path -> size
+	filesVisited := 0
+	nonAudioSkipped := 0
+	walkErrors := 0
+	statErrors := 0
+	discoveredByExt := make(map[string]int)
+	skippedByExt := make(map[string]int)
 	err := filepath.WalkDir(libraryRoot, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
+			walkErrors++
+			syncLog.Debug().Err(err).Str("path", path).Msg("fs_scan: skipping entry (walk error)")
 			return nil // skip inaccessible directories
 		}
 		if d.IsDir() {
 			return nil
 		}
+
+		filesVisited++
+		ext := audioExtension(d.Name())
+		if ext == "" {
+			ext = "no_ext"
+		}
 		if !isAudioFile(d.Name()) {
+			nonAudioSkipped++
+			skippedByExt[ext]++
 			return nil
 		}
 
@@ -70,17 +94,35 @@ func reconcileExistingAudiobookFilesWithProgress(ctx context.Context, db databas
 
 		info, err := d.Info()
 		if err != nil {
+			statErrors++
+			syncLog.Debug().Err(err).Str("path", path).Msg("fs_scan: skipping audio file (stat error)")
 			return nil // skip files we can't stat
 		}
 		discoveredFiles[path] = info.Size()
+		discoveredByExt[ext]++
 		return nil
 	})
 	if err != nil {
 		return 0, err
 	}
 
-	// Build an index of ASIN -> file path for fast primary matching.
+	syncLog.Info().
+		Str("library_root", libraryRoot).
+		Int("files_visited", filesVisited).
+		Int("audio_files_discovered", len(discoveredFiles)).
+		Int("non_audio_skipped", nonAudioSkipped).
+		Int("walk_errors", walkErrors).
+		Int("stat_errors", statErrors).
+		Msg("fs_scan: audio discovery complete")
+	syncLog.Debug().
+		Str("audio_by_ext", formatCountMap(discoveredByExt)).
+		Str("skipped_by_ext", formatCountMap(skippedByExt)).
+		Msg("fs_scan: extension breakdown")
+
+	// Build an index of ASIN -> file path. Searches filename AND all parent directory
+	// components, matching the Audnexus.bundle behaviour.
 	asinFileIndex := buildASINFileIndex(discoveredFiles)
+	syncLog.Debug().Int("asin_index_entries", len(asinFileIndex)).Msg("fs_scan: ASIN index built")
 
 	// Phase 2: Load all books from the database
 	books, _, err := db.ListBooks(ctx, database.BookFilter{Limit: 10000, Offset: 0})
@@ -91,6 +133,13 @@ func reconcileExistingAudiobookFilesWithProgress(ctx context.Context, db databas
 	// Phase 3: Build a map of matched files per book and track unmatched files
 	matchedFiles := make(map[string]struct{}) // files that were matched to a book
 	updated := 0
+	missingCompleteBooks := 0
+	matchMethodCounts := map[string]int{
+		"asin_path":      0,
+		"stored_path":    0,
+		"candidate_path": 0,
+		"no_match":       0,
+	}
 
 	totalWork := len(books) // progress counters should represent books only
 	processed := 0
@@ -103,12 +152,18 @@ func reconcileExistingAudiobookFilesWithProgress(ctx context.Context, db databas
 		default:
 		}
 
-		matchedFile, matchedSize := findBestFileForBook(ctx, &books[i], libraryRoot, discoveredFiles, asinFileIndex)
+		matchedFile, matchedSize, matchMethod := findBestFileForBook(ctx, &books[i], libraryRoot, discoveredFiles, asinFileIndex)
+		matchMethodCounts[matchMethod]++
 		if matchedFile != "" {
 			matchedFiles[matchedFile] = struct{}{}
 
 			// Update book if file status changed
 			if books[i].FilePath != matchedFile || books[i].FileSize != matchedSize || books[i].Status != database.BookStatusComplete {
+				syncLog.Debug().
+					Str("asin", books[i].ASIN).
+					Str("file", matchedFile).
+					Str("match_method", matchMethod).
+					Msg("fs_scan: reconciling book to file")
 				books[i].FilePath = matchedFile
 				books[i].FileSize = matchedSize
 				books[i].Status = database.BookStatusComplete
@@ -119,6 +174,12 @@ func reconcileExistingAudiobookFilesWithProgress(ctx context.Context, db databas
 			}
 		} else if books[i].Status == database.BookStatusComplete {
 			// Book was marked complete but file is missing
+			missingCompleteBooks++
+			syncLog.Debug().
+				Str("asin", books[i].ASIN).
+				Str("title", books[i].Title).
+				Str("prev_path", books[i].FilePath).
+				Msg("fs_scan: complete book has no file on disk, marking new")
 			books[i].FilePath = ""
 			books[i].FileSize = 0
 			books[i].Status = database.BookStatusNew
@@ -134,83 +195,138 @@ func reconcileExistingAudiobookFilesWithProgress(ctx context.Context, db databas
 		}
 	}
 
-	// Phase 4: Log unmatched files for debugging (these could be from older versions or other sources)
+	// Phase 4: Report on unmatched files (files on disk with no matching database book)
 	unmatchedCount := 0
+	unmatchedSamples := make([]string, 0, 10)
 	for filePath := range discoveredFiles {
 		if _, matched := matchedFiles[filePath]; !matched {
 			unmatchedCount++
+			if len(unmatchedSamples) < 10 {
+				unmatchedSamples = append(unmatchedSamples, filePath)
+			}
 		}
 	}
 
-	if unmatchedCount > 0 {
-		// In future, we could add logic to:
-		// 1. Read metadata from unmatched files
-		// 2. Attempt fuzzy matching by comparing metadata to book info
-		// 3. Create database entries for truly orphaned files
-		// For now, just track that they exist
-		syncLog.Info().Int("count", unmatchedCount).Msg("found unmatched audio files in library (not matched to any database book)")
+	syncLog.Info().
+		Int("books_in_db", len(books)).
+		Int("audio_files_on_disk", len(discoveredFiles)).
+		Int("files_matched_to_book", len(matchedFiles)).
+		Int("files_unmatched", unmatchedCount).
+		Int("complete_books_missing_file", missingCompleteBooks).
+		Int("books_updated", updated).
+		Msg("fs_scan: reconciliation complete")
+	syncLog.Debug().
+		Str("match_methods", formatCountMap(matchMethodCounts)).
+		Msg("fs_scan: match method breakdown")
+	if len(unmatchedSamples) > 0 {
+		syncLog.Debug().Strs("unmatched_samples", unmatchedSamples).Msg("fs_scan: sample unmatched audio files (no matching database book)")
 	}
 
 	return updated, nil
 }
 
-// findBestFileForBook searches for matching audio files for a book in discoveredFiles.
-// It returns the best matching file path and its size, or empty string if no match found.
-func findBestFileForBook(ctx context.Context, book *database.Book, libraryRoot string, discoveredFiles map[string]int64, asinFileIndex map[string]string) (string, int64) {
+// findBestFileForBook searches for a matching audio file for a book among discoveredFiles.
+// Returns the best matching file path, its size, and the method used to find it.
+// Match methods (in priority order):
+//   - "asin_path"      hard match: ASIN found anywhere in the path (filename or folder), mirroring Audnexus.bundle
+//   - "stored_path"    previously stored FilePath is still present on disk
+//   - "candidate_path" a generated candidate path (author/title/filename layout) exists on disk
+//   - "no_match"       no file found
+func findBestFileForBook(ctx context.Context, book *database.Book, libraryRoot string, discoveredFiles map[string]int64, asinFileIndex map[string]string) (string, int64, string) {
 	if book == nil {
-		return "", 0
+		return "", 0, "no_match"
 	}
 
 	_ = ctx
 
-	// First choice: ASIN match from discovered filenames.
+	// First choice: hard ASIN match — file path (folder or filename) contains the ASIN.
+	// This is the same strategy as Audnexus.bundle's check_for_asin().
 	asin := strings.ToUpper(strings.TrimSpace(book.ASIN))
 	if asin != "" {
 		if path, ok := asinFileIndex[asin]; ok {
 			if size, found := discoveredFiles[path]; found {
-				return path, size
+				return path, size, "asin_path"
 			}
 		}
 	}
 
-	paths := candidateLibraryPaths(book, libraryRoot)
-
-	// Second choice: if we have a previously stored path and it exists in discoveredFiles
+	// Second choice: previously stored file path still exists on disk
 	if book.FilePath != "" {
 		if size, found := discoveredFiles[book.FilePath]; found {
-			return book.FilePath, size
+			return book.FilePath, size, "stored_path"
 		}
 	}
 
-	// Third choice: check all candidate paths against discovered files
-	for _, path := range paths {
+	// Third choice: check generated candidate paths (author/title/filename layout)
+	for _, path := range candidateLibraryPaths(book, libraryRoot) {
 		if size, found := discoveredFiles[path]; found {
-			return path, size
+			return path, size, "candidate_path"
 		}
 	}
 
-	return "", 0
+	return "", 0, "no_match"
+}
+
+// asinPathRe matches Audible ASINs (B + 9 uppercase alphanumeric chars) with word
+// boundaries, using the same character class as Audnexus.bundle's asin_regex.
+var asinPathRe = regexp.MustCompile(`(?i)\bB[0-9A-Z]{9}\b`)
+
+// extractASINFromPath searches for an Audible ASIN anywhere in a file path.
+// It checks the filename first (most specific), then walks up each parent directory
+// component — mirroring how Audnexus.bundle searches media.filename (the full path)
+// so that files stored inside folders like "Title B0XXXXXXXXXX [us]/" are matched.
+func extractASINFromPath(path string) string {
+	// Check filename first
+	if match := asinPathRe.FindString(filepath.Base(path)); match != "" {
+		return strings.ToUpper(match)
+	}
+	// Walk up directory components
+	dir := filepath.Dir(path)
+	for {
+		if match := asinPathRe.FindString(filepath.Base(dir)); match != "" {
+			return strings.ToUpper(match)
+		}
+		next := filepath.Dir(dir)
+		if next == dir { // reached filesystem root
+			break
+		}
+		dir = next
+	}
+	return ""
 }
 
 func buildASINFileIndex(discoveredFiles map[string]int64) map[string]string {
 	index := make(map[string]string)
-	asinRe := regexp.MustCompile(`(?i)\bB[0-9A-Z]{9}\b`)
-
 	for path := range discoveredFiles {
-		name := filepath.Base(path)
-		match := asinRe.FindString(name)
-		if match == "" {
+		asin := extractASINFromPath(path)
+		if asin == "" {
 			continue
 		}
-
-		asin := strings.ToUpper(match)
 		// Keep first match to avoid non-deterministic overwrites.
 		if _, exists := index[asin]; !exists {
 			index[asin] = path
 		}
 	}
-
 	return index
+}
+
+// formatCountMap formats a map[string]int as a sorted "key=val,key=val" string for logging.
+func formatCountMap(counts map[string]int) string {
+	keys := make([]string, 0, len(counts))
+	for k, v := range counts {
+		if v > 0 {
+			keys = append(keys, k)
+		}
+	}
+	if len(keys) == 0 {
+		return "none"
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%d", k, counts[k]))
+	}
+	return strings.Join(parts, ",")
 }
 
 func reconcileBookFromLibrary(ctx context.Context, db database.Database, book *database.Book, libraryRoot string) (bool, error) {
