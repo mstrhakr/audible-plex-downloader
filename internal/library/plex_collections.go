@@ -26,7 +26,7 @@ type plexCollectionsResponse struct {
 }
 
 type plexCollectionsContainer struct {
-	Size     int               `json:"size"`
+	Size     int                `json:"size"`
 	Metadata []plexCollectionMD `json:"Metadata"`
 }
 
@@ -42,7 +42,7 @@ type plexCreateCollectionResponse struct {
 }
 
 type plexCreateCollectionContainer struct {
-	Size     int               `json:"size"`
+	Size     int                `json:"size"`
 	Metadata []plexCollectionMD `json:"Metadata"`
 }
 
@@ -52,7 +52,7 @@ type plexSearchAlbumsResponse struct {
 }
 
 type plexSearchAlbumsContainer struct {
-	Size     int              `json:"size"`
+	Size     int               `json:"size"`
 	Metadata []plexSearchAlbum `json:"Metadata"`
 }
 
