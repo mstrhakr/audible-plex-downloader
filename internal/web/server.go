@@ -272,6 +272,7 @@ func (s *Server) setupRoutes() {
 		api.GET("/diagnostics/compare", s.handleDiagnosticsCompare)
 		api.GET("/diagnostics/plex-items", s.handleDiagnosticsPlexItems)
 		api.POST("/downloads/redownload/:asin", s.handleRedownload)
+		api.POST("/diagnostics/redownload-all", s.handleDiagnosticsRedownloadAll)
 	}
 }
 
@@ -1679,6 +1680,58 @@ func (s *Server) handleRedownload(c *gin.Context) {
 		"success": true,
 		"message": fmt.Sprintf("Book '%s' has been queued for redownload", book.Title),
 	})
+}
+
+// handleDiagnosticsRedownloadAll redownloads all problem books shown on the diagnostics page.
+func (s *Server) handleDiagnosticsRedownloadAll(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// Get all complete books
+	completeStatus := database.BookStatusComplete
+	books, _, err := s.db.ListBooks(ctx, database.BookFilter{Status: &completeStatus, Limit: 10000})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load books: " + err.Error()})
+		return
+	}
+
+	queued := 0
+	var errors []string
+	for _, book := range books {
+		// Delete old file if it exists
+		if book.FilePath != "" {
+			if err := os.Remove(book.FilePath); err != nil && !os.IsNotExist(err) {
+				webLog.Warn().Err(err).Str("path", book.FilePath).Msg("failed to remove old file")
+			}
+			parentDir := filepath.Dir(book.FilePath)
+			if parentDir != "" && parentDir != s.audiobooksPath {
+				entries, err := os.ReadDir(parentDir)
+				if err == nil && len(entries) == 0 {
+					_ = os.Remove(parentDir)
+				}
+			}
+		}
+
+		// Reset book status
+		book.Status = database.BookStatusNew
+		book.FilePath = ""
+		book.FileSize = 0
+		if err := s.db.UpsertBook(ctx, &book); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", book.ASIN, err))
+			continue
+		}
+
+		if _, err := s.downloads.QueueBook(ctx, book.ID, book.ASIN, 50); err != nil {
+			webLog.Warn().Err(err).Str("asin", book.ASIN).Msg("failed to queue book for redownload")
+		}
+		queued++
+	}
+
+	msg := fmt.Sprintf("Queued %d books for redownload", queued)
+	if len(errors) > 0 {
+		msg += fmt.Sprintf(" (%d errors)", len(errors))
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": msg, "queued": queued, "errors": len(errors)})
 }
 
 // normalizeTitle normalizes a title for comparison (removes special chars, lowercase).

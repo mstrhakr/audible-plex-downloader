@@ -9,6 +9,7 @@
 
 <div class="actions-bar">
     <button id="btn-refresh" class="btn btn-primary" onclick="loadDiagnostics()">Refresh</button>
+    <button id="btn-redownload-all" class="btn btn-warning" onclick="redownloadAll()" style="display:none;">Redownload All</button>
     <select id="filter-type" onchange="filterResults()">
         <option value="all">All Issues</option>
         <option value="missing-plex">Missing from Plex</option>
@@ -89,11 +90,17 @@ function renderSummary(data) {
 
 function renderResults(items) {
     const results = document.getElementById('diagnostics-results');
+    const redownloadAllBtn = document.getElementById('btn-redownload-all');
     
     if (!items || items.length === 0) {
         results.innerHTML = '<p class="success">No issues found! All complete books are properly synced.</p>';
+        redownloadAllBtn.style.display = 'none';
         return;
     }
+    
+    // Show the redownload-all button if any items can be redownloaded
+    const hasRedownloadable = items.some(i => i.can_redownload);
+    redownloadAllBtn.style.display = hasRedownloadable ? '' : 'none';
     
     let html = `
         <table class="data-table">
@@ -193,6 +200,32 @@ async function redownloadBook(asin, title) {
             // Remove the row from the table
             const row = document.getElementById('diag-' + asin);
             if (row) row.remove();
+        } else {
+            status.innerHTML = '<span class="error">Error: ' + (data.error || 'Unknown error') + '</span>';
+        }
+    } catch (error) {
+        status.innerHTML = '<span class="error">Error: ' + error.message + '</span>';
+    }
+}
+
+async function redownloadAll() {
+    if (!confirm('Are you sure you want to redownload ALL complete books?\n\nThis will delete existing files and queue fresh downloads for every complete book in your library.')) {
+        return;
+    }
+    
+    const status = document.getElementById('diag-status');
+    status.innerHTML = '<span class="loading">Queuing redownloads...</span>';
+    
+    try {
+        const response = await fetch('/api/diagnostics/redownload-all', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            status.innerHTML = '<span class="success">' + data.message + '</span>';
+            loadDiagnostics();
         } else {
             status.innerHTML = '<span class="error">Error: ' + (data.error || 'Unknown error') + '</span>';
         }
