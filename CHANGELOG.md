@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-03-15
+
+### Added
+
+- Plex collections management for book series
+- PlexMatch file generation for improved Plex metadata accuracy
+- Diagnostics page for library comparison with Plex
+- Plex scan status endpoint with real-time monitoring UI
+
+### Changed
+
+- Enhanced path sanitization to handle Unicode punctuation and trailing characters
+
+### Fixed
+
+- Restored sync status boxes with real-time phase progress bars on dashboard
+- Album title now correctly set to book title for proper Plex album handling
+
 ## [0.1.4] - 2026-03-10
 
 ### Added
@@ -45,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker containerization
 - Scheduled library sync
 
-[Unreleased]: https://github.com/mstrhakr/audible-plex-downloader/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/mstrhakr/audible-plex-downloader/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/mstrhakr/audible-plex-downloader/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/mstrhakr/audible-plex-downloader/releases/tag/v0.1.4
 [0.1.0]: https://github.com/mstrhakr/audible-plex-downloader/releases/tag/v0.1.0
