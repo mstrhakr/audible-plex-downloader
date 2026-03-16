@@ -31,6 +31,7 @@
         var reconnectTimer = null;
         var reconnectDelay = 1000;
         var maxReconnectDelay = 15000;
+        var stageRateState = {};
 
         var badgeClass = {
             'downloading': 'badge-warning',
@@ -264,6 +265,29 @@
             return Math.floor(secs/3600) + 'h ' + Math.floor((secs%3600)/60) + 'm';
         }
 
+        function getStageThroughput(d, stage) {
+            if (!d || !d.asin || !(d.bytes_written > 0)) return 0;
+            if (stage !== 'decrypting' && stage !== 'processing') return 0;
+
+            var key = d.asin + ':' + stage;
+            var now = Date.now();
+            var prev = stageRateState[key];
+            stageRateState[key] = { bytes: d.bytes_written, ts: now };
+            if (!prev) return 0;
+
+            var deltaBytes = d.bytes_written - prev.bytes;
+            var deltaMs = now - prev.ts;
+            if (deltaBytes <= 0 || deltaMs < 250) return 0;
+            return (deltaBytes * 1000) / deltaMs;
+        }
+
+        function clearStageRateState(asin) {
+            if (!asin) return;
+            for (var k in stageRateState) {
+                if (k.indexOf(asin + ':') === 0) delete stageRateState[k];
+            }
+        }
+
         function onPipelineEvent(e) {
             var d = JSON.parse(e.data);
 
@@ -326,6 +350,7 @@
 
                     // Keep cards focused on active work only; queued/non-active states should not linger.
                     if (!isActiveStage) {
+                        clearStageRateState(d.asin);
                         if (card) card.remove();
                         return;
                     }
@@ -357,6 +382,14 @@
                             speedInfo = fmtBytes(d.speed) + '/s';
                         } else if (stage === 'moving' && d.speed > 0) {
                             speedInfo = fmtBytes(d.speed) + '/s';
+                        } else if (stage === 'decrypting' || stage === 'processing') {
+                            var throughput = getStageThroughput(d, stage);
+                            if (throughput > 0) {
+                                speedInfo = fmtBytes(throughput) + '/s';
+                            }
+                            if (d.speed > 0) {
+                                speedInfo += (speedInfo ? ' (' : '') + d.speed.toFixed(2) + 'x' + (speedInfo ? ')' : '');
+                            }
                         } else if (stage !== 'downloading' && d.speed > 0) {
                             speedInfo = d.speed.toFixed(2) + 'x';
                         }
@@ -382,6 +415,7 @@
                         '</span></div>' + details +
                         ((stage === 'downloading' || stage === 'decrypting' || stage === 'processing' || stage === 'moving' || stage === 'waiting_decrypt' || stage === 'waiting_moving') ? '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>' : '');
                 } else if (d.type === 'complete') {
+                    clearStageRateState(d.asin);
                     if (card) card.remove();
                     // Add row to completed table
                     var cb = document.getElementById('complete-body');
@@ -395,6 +429,7 @@
                         adj('complete-count', 1);
                     }
                 } else if (d.type === 'failed') {
+                    clearStageRateState(d.asin);
                     if (card) card.remove();
                     // Add row to failed table
                     var fb = document.getElementById('failed-body');
