@@ -371,9 +371,29 @@ func copyFile(src, dst string, totalBytes int64, onProgress func(moved, total in
 var unsafeChars = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]`)
 
 // sanitizePath removes characters that are unsafe in filenames.
+// On Windows, folder/file names cannot end with dots or spaces (the OS silently
+// strips them, which can create 8.3 short-name collisions like "BLF4TR~H").
+// We also replace common Unicode punctuation with ASCII equivalents so that
+// names stay readable across all platforms.
 func sanitizePath(name string) string {
-	s := unsafeChars.ReplaceAllString(name, "")
+	// Replace common Unicode punctuation with ASCII equivalents.
+	r := strings.NewReplacer(
+		"\u2018", "'", "\u2019", "'", // smart single quotes
+		"\u201C", "", "\u201D", "", // smart double quotes (removed like regular quotes)
+		"\u2013", "-", "\u2014", "-", // en-dash, em-dash
+		"\u2026", "...", // ellipsis
+		"\u00A0", " ", // non-breaking space
+	)
+	s := r.Replace(name)
+
+	s = unsafeChars.ReplaceAllString(s, "")
 	s = strings.TrimSpace(s)
+
+	// Strip trailing dots — Windows silently removes them from directory names,
+	// which can cause 8.3 short-name fallbacks.
+	s = strings.TrimRight(s, ".")
+	s = strings.TrimSpace(s) // in case dots were after spaces
+
 	if s == "" {
 		return "_"
 	}

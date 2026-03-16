@@ -102,3 +102,33 @@ func TestBuildBookDirectoryName(t *testing.T) {
 		})
 	}
 }
+
+func TestSanitizePath(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"plain name", "Craig Alanson", "Craig Alanson"},
+		{"trailing dot", "St. John Jr.", "St. John Jr"},
+		{"trailing dots", "Someone...", "Someone"},
+		{"trailing space and dot", "Someone . ", "Someone"},
+		{"smart quotes", "John \u2018Jack\u2019 Smith", "John 'Jack' Smith"},
+		{"em dash", "Author \u2014 Name", "Author - Name"},
+		{"unicode double quotes", "\u201CHello\u201D", "Hello"},
+		{"non-breaking space", "Author\u00A0Name", "Author Name"},
+		{"colons stripped", "Title: Subtitle", "Title Subtitle"},
+		{"all unsafe", `<>:"/\|?*`, "_"},
+		{"empty", "", "_"},
+		{"only dots", "...", "_"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizePath(tt.input)
+			if got != tt.want {
+				t.Fatalf("sanitizePath(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
