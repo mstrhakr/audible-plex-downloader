@@ -292,14 +292,17 @@ func findBestFileForBook(ctx context.Context, book *database.Book, libraryRoot s
 	return "", 0, "no_match"
 }
 
-// asinPathRe matches Audible ASINs (B + 9 uppercase alphanumeric chars) with word
-// boundaries, using the same character class as Audnexus.bundle's asin_regex.
-var asinPathRe = regexp.MustCompile(`(?i)\bB[0-9A-Z]{9}\b`)
+// asinPathRe matches both:
+//   - Audible ASINs: B + 9 uppercase alphanumeric chars (e.g. B0DCCZ5MG2)
+//   - ISBN-10 fallback: 10 digits (e.g. 1774246864, 0525588035)
+//
+// The Audible API sometimes returns ISBN-10 in place of ASINs, so we match both.
+var asinPathRe = regexp.MustCompile(`(?i)\bB[0-9A-Z]{9}\b|\b[0-9]{10}\b`)
 
-// extractASINFromPath searches for an Audible ASIN anywhere in a file path.
-// It checks the filename first (most specific), then walks up each parent directory
-// component — mirroring how Audnexus.bundle searches media.filename (the full path)
-// so that files stored inside folders like "Title B0XXXXXXXXXX [us]/" are matched.
+// extractASINFromPath searches for an Audible ASIN (or ISBN-10 fallback) anywhere in a file path.
+// Audible ASINs start with 'B' + 9 alphanumerics, but the Audible API sometimes returns ISBN-10s
+// (10 digits) in place of ASINs. Since the organizer writes whatever identifier came from the API,
+// we match both patterns. The filename is checked first (most specific), then parent directories.
 func extractASINFromPath(path string) string {
 	// Check filename first
 	if match := asinPathRe.FindString(filepath.Base(path)); match != "" {

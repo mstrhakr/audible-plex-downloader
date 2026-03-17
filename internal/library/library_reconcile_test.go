@@ -106,6 +106,32 @@ func TestExtractASINFromPathPrefersFilenameOverFolder(t *testing.T) {
 	}
 }
 
+func TestExtractASINFromPathMatchesISBN10(t *testing.T) {
+	// The Audible API sometimes returns ISBN-10 (10 digits) instead of Audible ASIN.
+	// The organizer writes whatever the API returns, so we need to match ISBN-10s too.
+	path := filepath.Join("root", "Author Name", "Some Title 1774246864 [us]", "Some Title.m4b")
+	got := extractASINFromPath(path)
+	if got != "1774246864" {
+		t.Fatalf("extractASINFromPath() = %q, want %q (should extract ISBN-10 from folder)", got, "1774246864")
+	}
+}
+
+func TestBuildASINIndexExtractsISBN10FromFolder(t *testing.T) {
+	// ISBN-10 in folder name should be indexed like any ASIN.
+	isbnPath := filepath.Join("root", "Author", "Book Title 0593393864 [us]", "Book Title.m4b")
+	files := map[string]int64{
+		isbnPath: 1000,
+	}
+
+	index := buildASINFileIndex(files)
+	if got := index["0593393864"]; got == "" {
+		t.Fatalf("buildASINFileIndex() should find ISBN-10 but got empty; path=%q", isbnPath)
+	}
+	if index["0593393864"] != isbnPath {
+		t.Fatalf("buildASINFileIndex() path = %q, want %q", index["0593393864"], isbnPath)
+	}
+}
+
 func TestFindBestFileForBookPrefersASINMatch(t *testing.T) {
 	root := filepath.Join("root")
 	asinFile := filepath.Join(root, "pirateaba", "Hell's Wardens B0DCCZ5MG2 [us]", "Hell's Wardens The Wandering Inn, Book 14 - The Wandering Inn 14 B0DCCZ5MG2 [us].m4b")
