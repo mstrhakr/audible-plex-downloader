@@ -33,8 +33,7 @@ type SyncPhase string
 const (
 	PhaseAudibleSync    SyncPhase = "audible_sync"
 	PhaseFileScan       SyncPhase = "file_scan"
-	PhasePlexQuery      SyncPhase = "plex_query"
-	PhasePlexScan       SyncPhase = "plex_scan"
+	PhasePlexSync       SyncPhase = "plex_sync"
 	PhaseCollectionSync SyncPhase = "collection_sync"
 	PhaseDownloadQueue  SyncPhase = "download_queue"
 )
@@ -44,8 +43,7 @@ func DefaultFullPhases() []PhaseStatus {
 	return []PhaseStatus{
 		{Name: PhaseAudibleSync, Label: "Audible Library", Status: "idle"},
 		{Name: PhaseFileScan, Label: "File System Scan", Status: "idle"},
-		{Name: PhasePlexQuery, Label: "Plex Library Query", Status: "idle"},
-		{Name: PhasePlexScan, Label: "Plex Scan", Status: "idle"},
+		{Name: PhasePlexSync, Label: "Plex Sync", Status: "idle"},
 		{Name: PhaseCollectionSync, Label: "Collection Sync", Status: "idle"},
 	}
 }
@@ -78,26 +76,23 @@ type PhaseStatus struct {
 
 // SyncProgress tracks the current state of a library sync.
 type SyncProgress struct {
-	Running      bool
-	Mode         SyncMode
-	Status       string
-	Message      string
-	Error        string
-	BooksFound   int
-	BooksScanned int
-	BooksAdded   int
-	FilesFound   int
-	PlexItems    int
-	PlexScanned  bool
-	StartedAt    time.Time
-	CompletedAt  time.Time
-
-	// Per-phase tracking
-	CurrentPhase SyncPhase
-	Phases       []PhaseStatus
+	Running      bool          `json:"running"`
+	Mode         SyncMode      `json:"mode"`
+	Status       string        `json:"status"`
+	Message      string        `json:"message,omitempty"`
+	Error        string        `json:"error,omitempty"`
+	BooksFound   int           `json:"books_found"`
+	BooksScanned int           `json:"books_scanned"`
+	BooksAdded   int           `json:"books_added"`
+	FilesFound   int           `json:"files_found"`
+	PlexItems    int           `json:"plex_items"`
+	PlexScanned  bool          `json:"plex_scanned"`
+	CurrentPhase SyncPhase     `json:"current_phase,omitempty"`
+	Phases       []PhaseStatus `json:"phases,omitempty"`
+	StartedAt    time.Time     `json:"started_at,omitempty"`
+	CompletedAt  time.Time     `json:"completed_at,omitempty"`
 }
 
-// Percent returns progress in the range [0,1].
 func (p SyncProgress) Percent() float64 {
 	if p.BooksFound <= 0 {
 		if p.Running {
@@ -118,10 +113,9 @@ func (p SyncProgress) Percent() float64 {
 	return percent
 }
 
-// PlexScanFunc is a callback that the SyncService uses to trigger Plex operations.
+// PlexSyncFunc is a callback that the SyncService uses to perform a combined Plex scan + query.
 // This avoids importing web-layer Plex code into the library package.
-type PlexScanFunc func(ctx context.Context) (plexItemCount int, err error)
-type PlexTriggerScanFunc func(ctx context.Context) error
+type PlexSyncFunc func(ctx context.Context) (plexItemCount int, err error)
 type PlexReconcileFunc func(ctx context.Context, progressFn func(current, total int)) error
 
 // SyncEvent is emitted via SSE whenever sync progress changes.
@@ -149,9 +143,8 @@ type SyncService struct {
 
 	libraryDir string
 
-	// Plex callbacks (set by web layer after construction)
-	plexQueryFunc     PlexScanFunc
-	plexScanFunc      PlexTriggerScanFunc
+	// Plex callback (set by web layer after construction)
+	plexSyncFunc      PlexSyncFunc
 	plexReconcileFunc PlexReconcileFunc
 
 	mu       sync.RWMutex
@@ -176,10 +169,9 @@ func NewSyncService(db database.Database, client *audible.Client, libraryDir str
 	}
 }
 
-// SetPlexCallbacks registers Plex integration functions.
-func (s *SyncService) SetPlexCallbacks(queryFn PlexScanFunc, scanFn PlexTriggerScanFunc) {
-	s.plexQueryFunc = queryFn
-	s.plexScanFunc = scanFn
+// SetPlexSyncCallback registers the combined Plex sync function.
+func (s *SyncService) SetPlexSyncCallback(fn PlexSyncFunc) {
+	s.plexSyncFunc = fn
 }
 
 // SetPlexReconcileCallback registers the Plex reconciliation function.
@@ -347,35 +339,20 @@ func (s *SyncService) RunPhase(ctx context.Context, phase SyncPhase) error {
 			s.setPhase(phase, "complete", fmt.Sprintf("%d files reconciled", reconciled))
 		}
 
-	case PhasePlexQuery:
-		if s.plexQueryFunc == nil {
+	case PhasePlexSync:
+		if s.plexSyncFunc == nil {
 			phaseErr = fmt.Errorf("Plex not configured")
 		} else {
-			items, err := s.plexQueryFunc(ctx)
+			items, err := s.plexSyncFunc(ctx)
 			if err != nil {
 				phaseErr = err
 			} else {
 				s.mu.Lock()
 				s.progress.PlexItems = items
-				s.emitLocked()
-				s.mu.Unlock()
-				s.setPhase(phase, "complete", fmt.Sprintf("%d items in Plex", items))
-			}
-		}
-
-	case PhasePlexScan:
-		if s.plexScanFunc == nil {
-			phaseErr = fmt.Errorf("Plex not configured")
-		} else {
-			err := s.plexScanFunc(ctx)
-			if err != nil {
-				phaseErr = err
-			} else {
-				s.mu.Lock()
 				s.progress.PlexScanned = true
 				s.emitLocked()
 				s.mu.Unlock()
-				s.setPhase(phase, "complete", "Plex scan triggered")
+				s.setPhase(phase, "complete", fmt.Sprintf("%d items in Plex (scan+query)", items))
 			}
 		}
 
@@ -465,7 +442,6 @@ func (s *SyncService) runSync(ctx context.Context, mode SyncMode) (int, error) {
 	}
 
 	// --- Phase 2: File Scan (full sync only) ---
-	filesReconciled := 0
 	if mode == SyncModeFull {
 		s.setPhase(PhaseFileScan, "running", "Scanning filesystem for existing books...")
 		syncLog.Info().Msg("starting filesystem file scan")
@@ -481,7 +457,6 @@ func (s *SyncService) runSync(ctx context.Context, mode SyncMode) (int, error) {
 			s.setPhase(PhaseFileScan, "failed", fsErr.Error())
 			syncLog.Warn().Err(fsErr).Msg("file scan phase failed")
 		} else {
-			filesReconciled = reconciled
 			s.mu.Lock()
 			s.progress.FilesFound = reconciled
 			s.emitLocked()
@@ -496,57 +471,32 @@ func (s *SyncService) runSync(ctx context.Context, mode SyncMode) (int, error) {
 			if fsErr != nil {
 				syncLog.Warn().Err(fsErr).Msg("quick reconcile failed")
 			} else if reconciled > 0 {
-				filesReconciled = reconciled
 				syncLog.Info().Int("books_reconciled", reconciled).Msg("quick sync: reconciled new books against disk")
 			}
 		}
 	}
 
-	// --- Phase 3: Plex Query (full sync only) ---
+	// --- Phase 3: Plex Sync (full sync only) ---
 	plexItems := 0
-	if mode == SyncModeFull && s.plexQueryFunc != nil {
-		s.setPhase(PhasePlexQuery, "running", "Querying Plex library...")
-		items, plexErr := s.plexQueryFunc(ctx)
+	if mode == SyncModeFull && s.plexSyncFunc != nil {
+		s.setPhase(PhasePlexSync, "running", "Syncing with Plex (scan + query)...")
+		items, plexErr := s.plexSyncFunc(ctx)
 		if plexErr != nil {
-			s.setPhase(PhasePlexQuery, "failed", plexErr.Error())
-			syncLog.Warn().Err(plexErr).Msg("plex query phase failed")
+			s.setPhase(PhasePlexSync, "failed", plexErr.Error())
+			syncLog.Warn().Err(plexErr).Msg("plex sync phase failed")
 		} else {
 			plexItems = items
 			s.mu.Lock()
 			s.progress.PlexItems = plexItems
+			s.progress.PlexScanned = true
 			s.emitLocked()
 			s.mu.Unlock()
-			s.setPhase(PhasePlexQuery, "complete", fmt.Sprintf("%d items in Plex", plexItems))
-			syncLog.Info().Int("plex_items", plexItems).Msg("queried Plex library")
+			s.setPhase(PhasePlexSync, "complete", fmt.Sprintf("%d items in Plex (scan complete)", plexItems))
+			syncLog.Info().Int("plex_items", plexItems).Msg("synced with Plex")
 		}
 	}
 
-	// --- Phase 4: Plex Scan (full sync only, if there are changes) ---
-	if mode == SyncModeFull && s.plexScanFunc != nil {
-		// Determine if we should trigger a Plex scan
-		// Trigger if new books were added, files were reconciled, or Plex is missing books
-		completeStatus := database.BookStatusComplete
-		_, completeCount, _ := s.db.ListBooks(ctx, database.BookFilter{Status: &completeStatus, Limit: 1})
-		plexNeedsScan := added > 0 || filesReconciled > 0 || (plexItems > 0 && plexItems < completeCount)
-
-		if plexNeedsScan {
-			s.setPhase(PhasePlexScan, "running", "Triggering Plex library scan...")
-			scanErr := s.plexScanFunc(ctx)
-			if scanErr != nil {
-				s.setPhase(PhasePlexScan, "failed", scanErr.Error())
-				syncLog.Warn().Err(scanErr).Msg("plex scan phase failed")
-			} else {
-				s.mu.Lock()
-				s.progress.PlexScanned = true
-				s.emitLocked()
-				s.mu.Unlock()
-				s.setPhase(PhasePlexScan, "complete", "Plex scan triggered")
-				syncLog.Info().Msg("plex library scan triggered")
-			}
-		} else {
-			s.setPhase(PhasePlexScan, "skipped", "No changes detected")
-		}
-	}
+	// --- Phase 4: Collection Sync (full sync only) ---
 
 	// --- Phase 5: Collection Sync (full sync only) ---
 	if mode == SyncModeFull && s.plexReconcileFunc != nil {
@@ -615,8 +565,7 @@ func (s *SyncService) buildPhases(mode SyncMode, prev []PhaseStatus) []PhaseStat
 		return []PhaseStatus{
 			defaultPhase(PhaseAudibleSync, "Audible Library"),
 			defaultPhase(PhaseFileScan, "File System Scan"),
-			defaultPhase(PhasePlexQuery, "Plex Library Query"),
-			defaultPhase(PhasePlexScan, "Plex Scan"),
+			defaultPhase(PhasePlexSync, "Plex Sync"),
 			defaultPhase(PhaseCollectionSync, "Collection Sync"),
 		}
 	}
@@ -627,8 +576,7 @@ func (s *SyncService) buildPhases(mode SyncMode, prev []PhaseStatus) []PhaseStat
 		label string
 	}{
 		{name: PhaseFileScan, label: "File System Scan"},
-		{name: PhasePlexQuery, label: "Plex Library Query"},
-		{name: PhasePlexScan, label: "Plex Scan"},
+		{name: PhasePlexSync, label: "Plex Sync"},
 		{name: PhaseCollectionSync, label: "Collection Sync"},
 	} {
 		if prevPhase, ok := findPrev(phase.name); ok {
@@ -662,7 +610,7 @@ func (s *SyncService) setPhase(phase SyncPhase, status, message string) {
 				s.progress.Phases[i].StartedAt = now
 				s.progress.Phases[i].EndedAt = time.Time{}
 				s.progress.Phases[i].Error = ""
-				if phase == PhasePlexQuery || phase == PhasePlexScan {
+				if phase == PhasePlexSync {
 					setPhaseProgress(&s.progress.Phases[i], 0, 0, true, status)
 				}
 			}
@@ -693,7 +641,7 @@ func (s *SyncService) setPhase(phase SyncPhase, status, message string) {
 				setPhaseProgress(&s.progress.Phases[i], 1, 1, false, status)
 			}
 			if status == "complete" {
-				if phase == PhasePlexQuery || phase == PhasePlexScan {
+				if phase == PhasePlexSync {
 					setPhaseProgress(&s.progress.Phases[i], 1, 1, false, status)
 				} else {
 					setPhaseProgress(&s.progress.Phases[i], s.progress.Phases[i].Total, s.progress.Phases[i].Total, false, status)

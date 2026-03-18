@@ -96,8 +96,8 @@ func NewServer(
 		configPath:     configPath,
 	}
 
-	// Wire up Plex callbacks so sync can query/trigger Plex without importing web.
-	syncSvc.SetPlexCallbacks(s.plexQueryForSync, s.plexTriggerScanForSync)
+	// Wire up new combined Plex sync callback
+	syncSvc.SetPlexSyncCallback(s.plexSyncForSync)
 	syncSvc.SetPlexReconcileCallback(func(ctx context.Context, progressFn func(current, total int)) error {
 		return dlMgr.ReconcilePlexLibrary(ctx, progressFn)
 	})
@@ -976,6 +976,77 @@ func (s *Server) plexTriggerScanForSync(ctx context.Context) error {
 	}
 	// Empty path triggers a full section scan, force=false for routine syncs
 	return s.plexTriggerSectionScan(ctx, plexURL, plexToken, sectionID, "", false)
+}
+
+// plexSyncForSync is the callback used by SyncService to perform a full Plex scan and then query the library.
+func (s *Server) plexSyncForSync(ctx context.Context) (int, error) {
+	plexURL, plexToken := s.getPlexSettings(ctx)
+	if plexURL == "" || plexToken == "" {
+		return 0, fmt.Errorf("Plex not configured")
+	}
+	sectionID, _ := s.db.GetSetting(ctx, "plex_section_id")
+	sectionID = strings.TrimSpace(sectionID)
+	if sectionID == "" {
+		return 0, fmt.Errorf("Plex library section not configured")
+	}
+
+	// Trigger scan (full section scan)
+	if err := s.plexTriggerSectionScan(ctx, plexURL, plexToken, sectionID, "", false); err != nil {
+		return 0, fmt.Errorf("failed to trigger Plex scan: %w", err)
+	}
+
+	// Wait for scan completion, then query the library.
+	if err := s.waitForPlexScanCompletion(ctx, plexURL, plexToken, sectionID, 10*time.Minute); err != nil {
+		return 0, fmt.Errorf("failed waiting for Plex scan to complete: %w", err)
+	}
+
+	return s.plexSectionItemCount(ctx, plexURL, plexToken, sectionID)
+}
+
+func (s *Server) waitForPlexScanCompletion(ctx context.Context, plexURL, token, sectionID string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		// Use latest activity list to determine if a scan is in progress.
+		activities, err := s.plexGetActivities(ctx, plexURL, token)
+		if err != nil {
+			return err
+		}
+		if !isPlexScanActive(activities, sectionID) {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			continue
+		}
+	}
+}
+
+func isPlexScanActive(activities []plexActivity, sectionID string) bool {
+	sectionID = strings.TrimSpace(sectionID)
+	for _, act := range activities {
+		ltype := strings.ToLower(act.Type)
+		title := strings.ToLower(act.Title)
+		sub := strings.ToLower(act.Subtitle)
+
+		if strings.Contains(ltype, "scan") || strings.Contains(ltype, "refresh") || strings.Contains(title, "scan") || strings.Contains(title, "refresh") || strings.Contains(sub, "scan") || strings.Contains(sub, "refresh") {
+			// If we know the target section, prefer matching it. Otherwise, treat as active.
+			if sectionID != "" && (strings.Contains(title, sectionID) || strings.Contains(sub, sectionID)) {
+				return true
+			}
+			if sectionID == "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // handleQueueAll queues all new books for download.
