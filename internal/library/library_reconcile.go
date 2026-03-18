@@ -43,7 +43,7 @@ func isAudioFile(filename string) bool {
 // audiobook file exists and marks previously complete books as new when the file
 // is missing so they can be re-downloaded.
 func reconcileExistingAudiobookFiles(ctx context.Context, db database.Database, libraryRoot string) (int, error) {
-	reconciled, _, err := reconcileExistingAudiobookFilesWithProgress(ctx, db, libraryRoot, nil)
+	reconciled, err := reconcileExistingAudiobookFilesWithProgress(ctx, db, libraryRoot, nil)
 	return reconciled, err
 }
 
@@ -132,23 +132,8 @@ func reconcileExistingAudiobookFilesWithProgress(ctx context.Context, db databas
 	// components, matching the Audnexus.bundle behaviour.
 	asinFileIndex := buildASINFileIndex(discoveredFiles)
 
-	// Log files without ASINs (these will likely not be matched)
-	filesWithoutASIN := make([]string, 0)
-	for path := range discoveredFiles {
-		if extractASINFromPath(path) == "" {
-			filesWithoutASIN = append(filesWithoutASIN, path)
-		}
-	}
-	if len(filesWithoutASIN) > 0 {
-		syncLog.Warn().
-			Int("count", len(filesWithoutASIN)).
-			Strs("files", filesWithoutASIN).
-			Msg("fs_scan: audio files discovered with no ASIN in path (will not be hard-matched)")
-	}
-
 	syncLog.Debug().
 		Int("asin_index_entries", len(asinFileIndex)).
-		Int("files_without_asin", len(filesWithoutASIN)).
 		Msg("fs_scan: ASIN index built")
 
 	// Phase 2: Load all books from the database
@@ -296,10 +281,11 @@ func findBestFileForBook(ctx context.Context, book *database.Book, libraryRoot s
 // asinPathRe matches both:
 //   - Audible ASINs: B + 9 uppercase alphanumeric chars (e.g. B0DCCZ5MG2)
 //   - ISBN-10 fallback: 10 digits (e.g. 1774246864, 0525588035)
+//   - ISBN-13 fallback: 13 digits starting with 978/979 (e.g. 9780143127550)
 //
-// The Audible API sometimes returns ISBN-10 in place of ASINs, so we match both.
-// Accepts Audible ASINs (BXXXXXXXXX) and ISBN-10 (including trailing X checksum).
-var asinPathRe = regexp.MustCompile(`(?i)\bB[0-9A-Z]{9}\b|\b[0-9]{9}[0-9X]\b`)
+// The Audible API sometimes returns ISBNs in place of ASINs, so we match all common formats.
+// Accepts Audible ASINs (BXXXXXXXXX), ISBN-10 (including trailing X checksum), and ISBN-13.
+var asinPathRe = regexp.MustCompile(`(?i)\b(?:B[0-9A-Z]{9}|97[89][0-9]{10}|[0-9]{9}[0-9X])\b`)
 
 // extractASINFromPath searches for an Audible ASIN (or ISBN-10 fallback) anywhere in a file path.
 // Audible ASINs start with 'B' + 9 alphanumerics, but the Audible API sometimes returns ISBN-10s

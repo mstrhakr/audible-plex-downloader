@@ -197,7 +197,7 @@ func TestFindBestFileForBookMatchesISBN10WithX(t *testing.T) {
 	}
 }
 
-func TestReconcileExistingAudiobookFilesReturnsFilesWithoutASIN(t *testing.T) {
+func TestReconcileExistingAudiobookFilesIgnoresUnmatchedFiles(t *testing.T) {
 	tmp := t.TempDir()
 
 	// Create one valid ASIN path and one file with no identifier.
@@ -225,12 +225,9 @@ func TestReconcileExistingAudiobookFilesReturnsFilesWithoutASIN(t *testing.T) {
 		}},
 	}
 
-	reconciled, withoutASIN, err := reconcileExistingAudiobookFilesWithProgress(context.Background(), db, tmp, nil)
+	reconciled, err := reconcileExistingAudiobookFilesWithProgress(context.Background(), db, tmp, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if withoutASIN != 1 {
-		t.Fatalf("files without ASIN = %d, want %d", withoutASIN, 1)
 	}
 	if reconciled != 1 {
 		t.Fatalf("reconciled = %d, want %d", reconciled, 1)
@@ -240,6 +237,24 @@ func TestReconcileExistingAudiobookFilesReturnsFilesWithoutASIN(t *testing.T) {
 	}
 	if db.upserted.ASIN != "B0ASIN0001" {
 		t.Fatalf("upserted ASIN = %q, want %q", db.upserted.ASIN, "B0ASIN0001")
+	}
+}
+
+func TestExtractASINFromPathMatchesISBN13(t *testing.T) {
+	// ISBN-13 should be recognized from folders (and treated like an ASIN).
+	path := filepath.Join("root", "Author Name", "Some Title 9780143127550 [us]", "Some Title.m4b")
+	got := extractASINFromPath(path)
+	if got != "9780143127550" {
+		t.Fatalf("extractASINFromPath() = %q, want %q (should extract ISBN-13 from folder)", got, "9780143127550")
+	}
+}
+
+func TestExtractASINFromPathMatchesASINInFilename(t *testing.T) {
+	// ASIN in filename should be found even when the folder name doesn't contain an identifier.
+	path := filepath.Join("root", "Author", "Some Title", "Some Title B0FILE0001.m4b")
+	got := extractASINFromPath(path)
+	if got != "B0FILE0001" {
+		t.Fatalf("extractASINFromPath() = %q, want %q (should extract ASIN from filename)", got, "B0FILE0001")
 	}
 }
 
@@ -272,9 +287,6 @@ func (m *reconcileMockDB) GetBook(ctx context.Context, id int64) (*database.Book
 }
 func (m *reconcileMockDB) GetBookByASIN(ctx context.Context, asin string) (*database.Book, error) {
 	return nil, nil
-}
-func (m *reconcileMockDB) ListBooks(ctx context.Context, filter database.BookFilter) ([]database.Book, int, error) {
-	return nil, 0, nil
 }
 func (m *reconcileMockDB) UpsertBook(ctx context.Context, book *database.Book) error {
 	copyBook := *book
