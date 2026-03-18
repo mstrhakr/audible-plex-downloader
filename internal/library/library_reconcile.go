@@ -264,8 +264,8 @@ func findBestFileForBook(ctx context.Context, book *database.Book, libraryRoot s
 
 	_ = ctx
 
-	// First choice: hard ASIN match — file path (folder or filename) contains the ASIN.
-	// This is the same strategy as Audnexus.bundle's check_for_asin().
+	// First choice: hard match — file path (folder or filename) contains the book's ASIN.
+	// Audible stores the identifier (ASIN/ISBN) in the ASIN field of the database.
 	asin := strings.ToUpper(strings.TrimSpace(book.ASIN))
 	if asin != "" {
 		if path, ok := asinFileIndex[asin]; ok {
@@ -297,7 +297,8 @@ func findBestFileForBook(ctx context.Context, book *database.Book, libraryRoot s
 //   - ISBN-10 fallback: 10 digits (e.g. 1774246864, 0525588035)
 //
 // The Audible API sometimes returns ISBN-10 in place of ASINs, so we match both.
-var asinPathRe = regexp.MustCompile(`(?i)\bB[0-9A-Z]{9}\b|\b[0-9]{10}\b`)
+// Accepts Audible ASINs (BXXXXXXXXX) and ISBN-10 (including trailing X checksum).
+var asinPathRe = regexp.MustCompile(`(?i)\bB[0-9A-Z]{9}\b|\b[0-9]{9}[0-9X]\b`)
 
 // extractASINFromPath searches for an Audible ASIN (or ISBN-10 fallback) anywhere in a file path.
 // Audible ASINs start with 'B' + 9 alphanumerics, but the Audible API sometimes returns ISBN-10s

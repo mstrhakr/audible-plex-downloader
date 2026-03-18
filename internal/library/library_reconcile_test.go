@@ -116,6 +116,15 @@ func TestExtractASINFromPathMatchesISBN10(t *testing.T) {
 	}
 }
 
+func TestExtractASINFromPathMatchesISBN10WithX(t *testing.T) {
+	// Some ISBN-10 values end with 'X' (a checksum digit). We need to match those too.
+	path := filepath.Join("root", "Author Name", "Some Title 103940474X [us]", "Some Title.m4b")
+	got := extractASINFromPath(path)
+	if got != "103940474X" {
+		t.Fatalf("extractASINFromPath() = %q, want %q (should extract ISBN-10 with X)", got, "103940474X")
+	}
+}
+
 func TestBuildASINIndexExtractsISBN10FromFolder(t *testing.T) {
 	// ISBN-10 in folder name should be indexed like any ASIN.
 	isbnPath := filepath.Join("root", "Author", "Book Title 0593393864 [us]", "Book Title.m4b")
