@@ -830,6 +830,8 @@ func (s *SyncService) doAudibleSync(ctx context.Context, syncRecord *database.Sy
 
 	added := 0
 	scanned := 0
+	keepASIN := make(map[string]struct{})
+
 	for _, item := range books {
 		book := convertBook(item)
 		syncLog.Trace().Str("asin", book.ASIN).Str("title", book.Title).Msg("processing book")
@@ -853,6 +855,8 @@ func (s *SyncService) doAudibleSync(ctx context.Context, syncRecord *database.Sy
 			s.mu.Unlock()
 			continue
 		}
+
+		keepASIN[book.ASIN] = struct{}{}
 
 		existing, err := s.db.GetBookByASIN(ctx, book.ASIN)
 		if err != nil {
@@ -929,7 +933,40 @@ func (s *SyncService) doAudibleSync(ctx context.Context, syncRecord *database.Sy
 		}
 	}
 
-	syncLog.Info().Int("added", added).Int("total", len(books)).Msg("audible library sync complete")
+	// Remove stale books that are no longer in Audible library or no longer downloadable.
+	removed := 0
+	allBooks, _, err := s.db.ListBooks(ctx, database.BookFilter{Limit: 100000})
+	if err == nil {
+		for _, dbBook := range allBooks {
+			if _, keep := keepASIN[dbBook.ASIN]; !keep {
+				if err := s.db.DeleteBook(ctx, dbBook.ID); err != nil {
+					syncLog.Warn().Err(err).Str("asin", dbBook.ASIN).Msg("failed deleting stale book")
+					continue
+				}
+				removed++
+			}
+		}
+		syncLog.Info().Int("removed_books", removed).Msg("audible library sync pruned stale entries")
+	} else {
+		syncLog.Warn().Err(err).Msg("audible library sync failed to list books for stale pruning")
+	}
+
+	// Adjust progress/book counts to reflect kept items only.
+	eligibleCount := len(keepASIN)
+	if len(books) > 0 {
+		s.mu.Lock()
+		s.progress.BooksFound = eligibleCount
+		s.progress.BooksScanned = scanned
+		s.progress.BooksAdded = added
+		s.mu.Unlock()
+	}
+
+	if syncRecord != nil {
+		syncRecord.BooksFound = eligibleCount
+		_ = s.db.UpdateSync(ctx, syncRecord)
+	}
+
+	syncLog.Info().Int("added", added).Int("eligible", eligibleCount).Int("removed", removed).Msg("audible library sync complete")
 	return added, nil
 }
 
