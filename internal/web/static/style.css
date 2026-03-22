@@ -42,6 +42,17 @@ body {
 .sidebar-header {
     padding: 1.5rem 1rem;
     border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.sidebar-header img.sidebar-logo {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+    border-radius: 8px;
+    border: 1px solid var(--border);
 }
 
 .sidebar-header h2 {

@@ -1,5 +1,7 @@
 # Audible Plex Downloader
 
+![Audplexus Logo](logo.svg)
+
 A pure Go Docker application that authenticates with Audible, downloads audiobooks, removes DRM via FFmpeg, fetches enriched metadata from Audnexus, and organizes files in Plex-compatible `Author/Title/Title.m4b` structure.
 
 ## Quick Start
