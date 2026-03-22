@@ -856,6 +856,31 @@ func (s *SyncService) doAudibleSync(ctx context.Context, syncRecord *database.Sy
 			continue
 		}
 
+		// Additional runtime check: ensure we can actually obtain download info before adding.
+		canDownload, err := s.client.CanDownload(ctx, item)
+		if err != nil || !canDownload {
+			logMsg := "skipping item after download probe"
+			if err != nil {
+				logMsg = fmt.Sprintf("skipping item after download probe: %v", err)
+			}
+			syncLog.Info().Str("asin", book.ASIN).Str("title", book.Title).Msg(logMsg)
+			scanned++
+			s.mu.Lock()
+			s.progress.BooksScanned = scanned
+			s.progress.BooksAdded = added
+			for i := range s.progress.Phases {
+				if s.progress.Phases[i].Name == PhaseAudibleSync {
+					setPhaseProgress(&s.progress.Phases[i], scanned, len(books), false, s.progress.Phases[i].Status)
+					break
+				}
+			}
+			if scanned%10 == 0 {
+				s.emitLocked()
+			}
+			s.mu.Unlock()
+			continue
+		}
+
 		keepASIN[book.ASIN] = struct{}{}
 
 		existing, err := s.db.GetBookByASIN(ctx, book.ASIN)
