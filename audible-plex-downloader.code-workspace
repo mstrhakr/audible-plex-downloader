@@ -1,0 +1,25 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../go-audible"
+		},
+		{
+			"path": "../docker-repository"
+		},
+		{
+			"name": "Audnexus.bundle",
+			"path": "../Audnexus.bundle"
+		}
+	],
+	"settings": {
+		"chat.tools.terminal.autoApprove": {
+			"/^go build \\./\\.\\.\\.$/": {
+				"approve": true,
+				"matchCommandLine": true
+			}
+		}
+	}
+}

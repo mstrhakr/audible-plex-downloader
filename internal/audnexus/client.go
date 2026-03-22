@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/logging"
+	"github.com/mstrhakr/audplexus/internal/logging"
 )
 
 var anLog = logging.Component("audnexus")
@@ -276,3 +276,4 @@ func (c *Client) getWithRegion(ctx context.Context, path, region string, result 
 	}
 	return nil
 }
+

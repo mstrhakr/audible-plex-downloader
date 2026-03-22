@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/database"
+	"github.com/mstrhakr/audplexus/internal/database"
 )
 
 var unsafePathChars = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]`)
@@ -506,3 +506,4 @@ func sanitizeLibraryPath(name string) string {
 	}
 	return s
 }
+

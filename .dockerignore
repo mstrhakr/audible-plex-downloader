@@ -25,7 +25,7 @@ testdata
 *.dll
 *.so
 *.dylib
-audible-plex-downloader
+audplexus
 
 # Config and data (use volumes instead)
 config.yaml
@@ -41,3 +41,4 @@ docker-data
 # CI/CD
 .gitlab-ci.yml
 .travis.yml
+

@@ -19,8 +19,8 @@ services:
       - audible-net
 
   audible-plex:
-    image: ghcr.io/mstrhakr/audible-plex-downloader:latest
-    container_name: audible-plex-downloader
+    image: ghcr.io/mstrhakr/audplexus:latest
+    container_name: audplexus
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,3 +79,4 @@ volumes:
 networks:
   audible-net:
     driver: bridge
+

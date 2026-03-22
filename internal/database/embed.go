@@ -7,3 +7,4 @@ var migrations embed.FS
 
 //go:embed migrations_postgres/*.sql
 var migrationsPostgres embed.FS
+

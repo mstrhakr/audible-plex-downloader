@@ -839,3 +839,4 @@ func (s *Server) plexListSectionItems(ctx context.Context, plexURL, token, secti
 
 	return items, nil
 }
+

@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/logging"
+	"github.com/mstrhakr/audplexus/internal/logging"
 )
 
 var decryptLog = logging.Component("decrypt")
@@ -505,3 +505,4 @@ func min(a, b int) int {
 	}
 	return b
 }
+

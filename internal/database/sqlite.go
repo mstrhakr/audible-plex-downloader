@@ -540,3 +540,4 @@ func buildBookWhere(filter BookFilter) (string, []interface{}) {
 	}
 	return " WHERE " + strings.Join(clauses, " AND "), args
 }
+

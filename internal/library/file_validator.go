@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/audio"
-	"github.com/mstrhakr/audible-plex-downloader/internal/database"
-	"github.com/mstrhakr/audible-plex-downloader/internal/logging"
+	"github.com/mstrhakr/audplexus/internal/audio"
+	"github.com/mstrhakr/audplexus/internal/database"
+	"github.com/mstrhakr/audplexus/internal/logging"
 )
 
 var validatorLog = logging.Component("validator")
@@ -243,3 +243,4 @@ func (fv *FileValidator) MarkBooksForRedownload(ctx context.Context, bookIDs []i
 
 	return nil
 }
+

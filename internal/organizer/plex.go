@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/audio"
-	"github.com/mstrhakr/audible-plex-downloader/internal/audnexus"
-	"github.com/mstrhakr/audible-plex-downloader/internal/database"
-	"github.com/mstrhakr/audible-plex-downloader/internal/logging"
+	"github.com/mstrhakr/audplexus/internal/audio"
+	"github.com/mstrhakr/audplexus/internal/audnexus"
+	"github.com/mstrhakr/audplexus/internal/database"
+	"github.com/mstrhakr/audplexus/internal/logging"
 )
 
 var orgLog = logging.Component("organizer")
@@ -399,3 +399,4 @@ func sanitizePath(name string) string {
 	}
 	return s
 }
+

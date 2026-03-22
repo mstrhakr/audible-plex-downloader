@@ -51,7 +51,7 @@ A pure Go Docker application that authenticates with Audible, downloads audioboo
 1. **Initialize Go module**
 
    ```bash
-   go mod init github.com/nick/audible-plex-downloader
+   go mod init github.com/nick/audplexus
    ```
 
 2. **Create Dockerfile**
@@ -181,7 +181,7 @@ A pure Go Docker application that authenticates with Audible, downloads audioboo
 ## Project Structure
 
 ```text
-audible-plex-downloader/
+audplexus/
 ├── cmd/
 │   └── server/
 │       └── main.go                 # Entry point
@@ -313,3 +313,4 @@ plex:
 - Podgrab-style podcast support (Audible podcasts)
 - Discord/Slack notifications
 - Bulk re-download with updated metadata
+

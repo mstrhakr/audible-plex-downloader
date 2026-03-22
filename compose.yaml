@@ -1,12 +1,12 @@
 services:
   audible-plex:
     # Use published image from GitHub Container Registry
-    image: ghcr.io/mstrhakr/audible-plex-downloader:latest
+    image: ghcr.io/mstrhakr/audplexus:latest
     
     # Or build locally (uncomment and comment image line above)
     # build: .
     
-    container_name: audible-plex-downloader
+    container_name: audplexus
     ports:
       - "8080:8080"
 
@@ -28,3 +28,4 @@ services:
       # - PLEX_URL=http://plex:32400
       # - PLEX_TOKEN=
     restart: unless-stopped
+

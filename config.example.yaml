@@ -39,3 +39,4 @@ plex:
 log:
   level: info  # trace, debug, info, warn, error, fatal
   json: false  # true for structured JSON output
+

@@ -53,3 +53,4 @@ func TestBookResponseRatingString(t *testing.T) {
 		t.Fatalf("got rating %v, want %v", got.Rating, FlexibleFloat64(4.8))
 	}
 }
+

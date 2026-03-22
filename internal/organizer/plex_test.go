@@ -132,3 +132,4 @@ func TestSanitizePath(t *testing.T) {
 		})
 	}
 }
+

@@ -307,3 +307,4 @@ func (dm *DownloadManager) addPlexHeaders(req *http.Request, token string) {
 		req.Header.Set("X-Plex-Token", token)
 	}
 }
+

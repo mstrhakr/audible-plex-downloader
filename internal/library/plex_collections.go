@@ -397,3 +397,4 @@ func (dm *DownloadManager) plexAddToCollection(ctx context.Context, plexURL, tok
 
 	return nil
 }
+

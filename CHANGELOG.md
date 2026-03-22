@@ -63,7 +63,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker containerization
 - Scheduled library sync
 
-[Unreleased]: https://github.com/mstrhakr/audible-plex-downloader/compare/v0.1.5...HEAD
-[0.1.5]: https://github.com/mstrhakr/audible-plex-downloader/compare/v0.1.4...v0.1.5
-[0.1.4]: https://github.com/mstrhakr/audible-plex-downloader/releases/tag/v0.1.4
-[0.1.0]: https://github.com/mstrhakr/audible-plex-downloader/releases/tag/v0.1.0
+[Unreleased]: https://github.com/mstrhakr/audplexus/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/mstrhakr/audplexus/compare/v0.1.4...v0.1.5
+[0.1.4]: https://github.com/mstrhakr/audplexus/releases/tag/v0.1.4
+[0.1.0]: https://github.com/mstrhakr/audplexus/releases/tag/v0.1.0
+

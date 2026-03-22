@@ -20,28 +20,28 @@ jobs:
         include:
           - goos: linux
             goarch: amd64
-            output: audible-plex-downloader-linux-amd64
+            output: audplexus-linux-amd64
           - goos: linux
             goarch: arm64
-            output: audible-plex-downloader-linux-arm64
+            output: audplexus-linux-arm64
           - goos: darwin
             goarch: amd64
-            output: audible-plex-downloader-darwin-amd64
+            output: audplexus-darwin-amd64
           - goos: darwin
             goarch: arm64
-            output: audible-plex-downloader-darwin-arm64
+            output: audplexus-darwin-arm64
           - goos: windows
             goarch: amd64
-            output: audible-plex-downloader-windows-amd64.exe
+            output: audplexus-windows-amd64.exe
           - goos: windows
             goarch: arm64
-            output: audible-plex-downloader-windows-arm64.exe
+            output: audplexus-windows-arm64.exe
     
     steps:
-      - name: Checkout audible-plex-downloader
+      - name: Checkout audplexus
         uses: actions/checkout@v5
         with:
-          path: audible-plex-downloader
+          path: audplexus
 
       - name: Checkout go-audible
         uses: actions/checkout@v5
@@ -59,7 +59,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
-        working-directory: audible-plex-downloader
+        working-directory: audplexus
         run: |
           # Pure Go build - no CGO needed (using modernc.org/sqlite)
           mkdir -p ../build
@@ -131,10 +131,10 @@ jobs:
           
           ### Docker
           \`\`\`bash
-          docker pull ghcr.io/mstrhakr/audible-plex-downloader:$TAG
+          docker pull ghcr.io/mstrhakr/audplexus:$TAG
           \`\`\`
           
-          See the [README](https://github.com/mstrhakr/audible-plex-downloader#readme) for configuration options.
+          See the [README](https://github.com/mstrhakr/audplexus#readme) for configuration options.
           END
           )
           fi
@@ -169,3 +169,4 @@ jobs:
           git push origin "$MAJOR" --force
           git push origin "$MINOR" --force
           echo "Moved $MAJOR and $MINOR → $TAG"
+

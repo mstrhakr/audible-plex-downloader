@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/database"
+	"github.com/mstrhakr/audplexus/internal/database"
 )
 
 func TestCandidateLibraryPathsIncludesNewAndLegacyLayouts(t *testing.T) {
@@ -334,3 +334,4 @@ func (m *reconcileMockDB) ListDevices(ctx context.Context) ([]database.Device, e
 	return nil, nil
 }
 func (m *reconcileMockDB) DeleteDevice(ctx context.Context, id int64) error { return nil }
+

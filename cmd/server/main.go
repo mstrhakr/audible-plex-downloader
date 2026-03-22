@@ -11,15 +11,15 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/audio"
-	"github.com/mstrhakr/audible-plex-downloader/internal/audnexus"
-	"github.com/mstrhakr/audible-plex-downloader/internal/config"
-	"github.com/mstrhakr/audible-plex-downloader/internal/database"
-	"github.com/mstrhakr/audible-plex-downloader/internal/library"
-	"github.com/mstrhakr/audible-plex-downloader/internal/logging"
-	"github.com/mstrhakr/audible-plex-downloader/internal/organizer"
-	"github.com/mstrhakr/audible-plex-downloader/internal/scheduler"
-	"github.com/mstrhakr/audible-plex-downloader/internal/web"
+	"github.com/mstrhakr/audplexus/internal/audio"
+	"github.com/mstrhakr/audplexus/internal/audnexus"
+	"github.com/mstrhakr/audplexus/internal/config"
+	"github.com/mstrhakr/audplexus/internal/database"
+	"github.com/mstrhakr/audplexus/internal/library"
+	"github.com/mstrhakr/audplexus/internal/logging"
+	"github.com/mstrhakr/audplexus/internal/organizer"
+	"github.com/mstrhakr/audplexus/internal/scheduler"
+	"github.com/mstrhakr/audplexus/internal/web"
 	audible "github.com/mstrhakr/go-audible"
 )
 
@@ -44,7 +44,7 @@ func main() {
 		Str("db_type", cfg.Database.Type).
 		Str("output_format", cfg.Output.Format).
 		Str("log_level", cfg.Log.Level).
-		Msg("starting audible-plex-downloader")
+		Msg("starting audplexus")
 
 	// Initialize database
 	db, err := initDatabase(cfg)
@@ -283,3 +283,4 @@ func detectMarketplace(credPath string) (audible.Marketplace, string) {
 
 	return audible.MarketplaceUS, "us"
 }
+

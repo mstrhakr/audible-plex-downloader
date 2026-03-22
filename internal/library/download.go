@@ -15,11 +15,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/audio"
-	"github.com/mstrhakr/audible-plex-downloader/internal/audnexus"
-	"github.com/mstrhakr/audible-plex-downloader/internal/database"
-	"github.com/mstrhakr/audible-plex-downloader/internal/logging"
-	"github.com/mstrhakr/audible-plex-downloader/internal/organizer"
+	"github.com/mstrhakr/audplexus/internal/audio"
+	"github.com/mstrhakr/audplexus/internal/audnexus"
+	"github.com/mstrhakr/audplexus/internal/database"
+	"github.com/mstrhakr/audplexus/internal/logging"
+	"github.com/mstrhakr/audplexus/internal/organizer"
 	audible "github.com/mstrhakr/go-audible"
 )
 
@@ -1237,3 +1237,4 @@ func formatBytes(b int64) string {
 	}
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
+

@@ -8,7 +8,7 @@ A pure Go Docker application that authenticates with Audible, downloads audioboo
 
 ```bash
 # Pull the latest image
-docker pull ghcr.io/mstrhakr/audible-plex-downloader:latest
+docker pull ghcr.io/mstrhakr/audplexus:latest
 
 # Create directories
 mkdir -p config audiobooks downloads
@@ -21,7 +21,7 @@ docker run -d \
   -v $(pwd)/config:/config \
   -v $(pwd)/audiobooks:/audiobooks \
   -v $(pwd)/downloads:/downloads \
-  ghcr.io/mstrhakr/audible-plex-downloader:latest
+  ghcr.io/mstrhakr/audplexus:latest
 
 # Or use Docker Compose
 docker compose up -d
@@ -31,15 +31,15 @@ docker compose up -d
 
 ```bash
 # Clone the repo
-git clone https://github.com/mstrhakr/audible-plex-downloader.git
-cd audible-plex-downloader
+git clone https://github.com/mstrhakr/audplexus.git
+cd audplexus
 
 # Copy and edit config
 cp config.example.yaml config/config.yaml
 
 # Build and run
 go build ./cmd/server
-./audible-plex-downloader
+./audplexus
 ```
 
 Then visit `http://localhost:8080` to authenticate and manage your library.
@@ -96,7 +96,7 @@ docker run -d \
   -v $(pwd)/config:/config \
   -v $(pwd)/audiobooks:/audiobooks \
   -v $(pwd)/downloads:/downloads \
-  ghcr.io/mstrhakr/audible-plex-downloader:latest
+  ghcr.io/mstrhakr/audplexus:latest
 ```
 
 Unraid-style environment variables:
@@ -110,7 +110,7 @@ docker run -d \
   -v /mnt/user/appdata/audible-plex/config:/config \
   -v /mnt/user/audiobooks:/audiobooks \
   -v /mnt/user/appdata/audible-plex/downloads:/downloads \
-  ghcr.io/mstrhakr/audible-plex-downloader:latest
+  ghcr.io/mstrhakr/audplexus:latest
 ```
 
 Notes:
@@ -126,7 +126,7 @@ The `compose.yaml` is configured to use the pre-built image from GitHub Containe
 ```yaml
 services:
   audible-plex:
-    image: ghcr.io/mstrhakr/audible-plex-downloader:latest
+    image: ghcr.io/mstrhakr/audplexus:latest
     ports:
       - "8080:8080"
     volumes:
@@ -159,16 +159,16 @@ Example usage:
 
 ```bash
 # Use latest stable release
-docker pull ghcr.io/mstrhakr/audible-plex-downloader:latest
+docker pull ghcr.io/mstrhakr/audplexus:latest
 
 # Pin to major version (auto-updates to latest 0.x.x)
-docker pull ghcr.io/mstrhakr/audible-plex-downloader:v0
+docker pull ghcr.io/mstrhakr/audplexus:v0
 
 # Pin to minor version (auto-updates to latest 0.1.x)
-docker pull ghcr.io/mstrhakr/audible-plex-downloader:v0.1
+docker pull ghcr.io/mstrhakr/audplexus:v0.1
 
 # Pin to exact version (never changes)
-docker pull ghcr.io/mstrhakr/audible-plex-downloader:v0.1.4
+docker pull ghcr.io/mstrhakr/audplexus:v0.1.4
 ```
 
 Images are automatically built and published via GitHub Actions on every push to main/master and on tagged releases.
@@ -185,7 +185,7 @@ Because this project depends on a local `go-audible` module, use the provided bu
 ./build-docker.ps1
 ```
 
-These scripts will set up the proper build context with both repositories and create an image tagged as `audible-plex-downloader:local`.
+These scripts will set up the proper build context with both repositories and create an image tagged as `audplexus:local`.
 
 ## Output Structure
 
@@ -204,10 +204,10 @@ Files are organized for Plex audiobook libraries:
 
 ```bash
 # Build locally
-go build -o audible-plex-downloader ./cmd/server
+go build -o audplexus ./cmd/server
 
 # Run
-./audible-plex-downloader
+./audplexus
 ```
 
 Requires Go 1.22+. Uses pure Go SQLite implementation (modernc.org/sqlite), so no CGO required.
@@ -230,8 +230,9 @@ To create a new release with automated binary builds and Docker images:
 - Creates a GitHub Release with downloadable archives
 - Builds and publishes Docker images with floating tags: `latest`, `v0`, `v0.1`, `v0.1.4`, `0`, `0.1`, `0.1.4`
 
-All releases are available at: <https://github.com/mstrhakr/audible-plex-downloader/releases>
+All releases are available at: <https://github.com/mstrhakr/audplexus/releases>
 
 ## License
 
 MIT
+

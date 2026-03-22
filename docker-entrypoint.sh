@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-APP_BIN="/usr/local/bin/audible-plex-downloader"
+APP_BIN="/usr/local/bin/audplexus"
 
 # If container already runs as a non-root user (for example with --user),
 # defer to that identity and ignore PUID/PGID.
@@ -36,3 +36,4 @@ if [ -n "$RUN_UID" ] || [ -n "$RUN_GID" ]; then
 fi
 
 exec "$APP_BIN" "$@"
+

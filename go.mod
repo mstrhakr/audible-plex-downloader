@@ -1,4 +1,4 @@
-module github.com/mstrhakr/audible-plex-downloader
+module github.com/mstrhakr/audplexus
 
 go 1.25.4
 

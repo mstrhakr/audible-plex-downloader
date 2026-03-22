@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/audio"
-	"github.com/mstrhakr/audible-plex-downloader/internal/database"
+	"github.com/mstrhakr/audplexus/internal/audio"
+	"github.com/mstrhakr/audplexus/internal/database"
 )
 
 // EnrichMetadata fetches Audnexus data and merges with the existing book record.
@@ -264,3 +264,4 @@ func (e *EnrichedBook) ToAudioMetadata() audio.Metadata {
 		Track:       e.SeriesPosition(),
 	}
 }
+

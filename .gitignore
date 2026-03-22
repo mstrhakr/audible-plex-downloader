@@ -1,6 +1,6 @@
 # Binaries
-audible-plex-downloader.exe
-audible-plex-downloader
+audplexus.exe
+audplexus
 *.exe
 *.exe~
 *.dll
@@ -45,6 +45,7 @@ logs/
 
 # Docker volumes
 docker-data/
-audible-plex-downloader.code-workspace
+audplexus.code-workspace
 go.work
 go.work.sum
+

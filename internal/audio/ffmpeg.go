@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/logging"
+	"github.com/mstrhakr/audplexus/internal/logging"
 )
 
 // FFmpeg wraps the ffmpeg and ffprobe binaries for audio processing.
@@ -210,3 +210,4 @@ func parseFloat(s string) float64 {
 	f, _ := strconv.ParseFloat(s, 64)
 	return f
 }
+

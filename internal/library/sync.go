@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/database"
-	"github.com/mstrhakr/audible-plex-downloader/internal/logging"
+	"github.com/mstrhakr/audplexus/internal/database"
+	"github.com/mstrhakr/audplexus/internal/logging"
 	audible "github.com/mstrhakr/go-audible"
 )
 
@@ -1050,3 +1050,4 @@ func convertBook(b audible.Book) database.Book {
 		DRMType:        drmType,
 	}
 }
+

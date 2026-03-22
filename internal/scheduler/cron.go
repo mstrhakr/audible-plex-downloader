@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/library"
-	"github.com/mstrhakr/audible-plex-downloader/internal/logging"
+	"github.com/mstrhakr/audplexus/internal/library"
+	"github.com/mstrhakr/audplexus/internal/logging"
 	"github.com/robfig/cron/v3"
 )
 
@@ -117,3 +117,4 @@ func (s *Scheduler) Stop() {
 	<-ctx.Done()
 	schedLog.Info().Msg("scheduler stopped")
 }
+

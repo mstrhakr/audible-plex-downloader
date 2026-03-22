@@ -19,14 +19,14 @@ RUN go mod download
 COPY . .
 
 # Build the application (pure Go, no CGO needed for modernc.org/sqlite)
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /audible-plex-downloader ./cmd/server
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /audplexus ./cmd/server
 
 # Runtime stage
 FROM alpine:3.19
 
 RUN apk add --no-cache ffmpeg ca-certificates tzdata su-exec
 
-COPY --from=builder /audible-plex-downloader /usr/local/bin/audible-plex-downloader
+COPY --from=builder /audplexus /usr/local/bin/audplexus
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
@@ -38,3 +38,4 @@ EXPOSE 8080
 VOLUME ["/config", "/audiobooks", "/downloads"]
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+

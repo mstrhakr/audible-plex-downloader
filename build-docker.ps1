@@ -8,9 +8,9 @@ $BuildDir = New-Item -ItemType Directory -Path (Join-Path $env:TEMP "docker-buil
 
 Write-Host "Preparing Docker build context in $BuildDir..." -ForegroundColor Cyan
 
-# Copy audible-plex-downloader
-Write-Host "Copying audible-plex-downloader..." -ForegroundColor Cyan
-Copy-Item -Recurse -Path $ScriptDir -Destination (Join-Path $BuildDir "audible-plex-downloader")
+# Copy audplexus
+Write-Host "Copying audplexus..." -ForegroundColor Cyan
+Copy-Item -Recurse -Path $ScriptDir -Destination (Join-Path $BuildDir "audplexus")
 
 # Copy or clone go-audible
 $GoAudiblePath = Join-Path (Split-Path -Parent $ScriptDir) "go-audible"
@@ -27,14 +27,15 @@ if (Test-Path $GoAudiblePath) {
 # Build the Docker image
 Write-Host "Building Docker image..." -ForegroundColor Cyan
 Push-Location $BuildDir
-docker build -f audible-plex-downloader/Dockerfile -t audible-plex-downloader:local .
+docker build -f audplexus/Dockerfile -t audplexus:local .
 Pop-Location
 
 Write-Host "Cleaning up build context..." -ForegroundColor Cyan
 Remove-Item -Recurse -Force $BuildDir
 
 Write-Host ""
-Write-Host "✅ Docker image built successfully as 'audible-plex-downloader:local'" -ForegroundColor Green
+Write-Host "✅ Docker image built successfully as 'audplexus:local'" -ForegroundColor Green
 Write-Host ""
 Write-Host "To run:" -ForegroundColor Cyan
-Write-Host "  docker run -d -p 8080:8080 -v ${PWD}/config:/config -v ${PWD}/audiobooks:/audiobooks audible-plex-downloader:local"
+Write-Host "  docker run -d -p 8080:8080 -v ${PWD}/config:/config -v ${PWD}/audiobooks:/audiobooks audplexus:local"
+

@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/database"
+	"github.com/mstrhakr/audplexus/internal/database"
 )
 
 // plexAllAlbumsResponse wraps the paginated /library/sections/{id}/albums response.
@@ -219,3 +219,4 @@ func (dm *DownloadManager) plexListAllAlbums(ctx context.Context, plexURL, token
 
 	return all, nil
 }
+

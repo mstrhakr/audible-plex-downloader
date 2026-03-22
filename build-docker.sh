@@ -9,9 +9,9 @@ BUILD_DIR="$(mktemp -d)"
 
 echo "Preparing Docker build context in $BUILD_DIR..."
 
-# Copy audible-plex-downloader
-echo "Copying audible-plex-downloader..."
-cp -r "$SCRIPT_DIR" "$BUILD_DIR/audible-plex-downloader"
+# Copy audplexus
+echo "Copying audplexus..."
+cp -r "$SCRIPT_DIR" "$BUILD_DIR/audplexus"
 
 # Copy or clone go-audible
 if [ -d "$SCRIPT_DIR/../go-audible" ]; then
@@ -25,13 +25,14 @@ fi
 # Build the Docker image
 echo "Building Docker image..."
 cd "$BUILD_DIR"
-docker build -f audible-plex-downloader/Dockerfile -t audible-plex-downloader:local .
+docker build -f audplexus/Dockerfile -t audplexus:local .
 
 echo "Cleaning up build context..."
 rm -rf "$BUILD_DIR"
 
 echo ""
-echo "✅ Docker image built successfully as 'audible-plex-downloader:local'"
+echo "✅ Docker image built successfully as 'audplexus:local'"
 echo ""
 echo "To run:"
-echo "  docker run -d -p 8080:8080 -v ./config:/config -v ./audiobooks:/audiobooks audible-plex-downloader:local"
+echo "  docker run -d -p 8080:8080 -v ./config:/config -v ./audiobooks:/audiobooks audplexus:local"
+

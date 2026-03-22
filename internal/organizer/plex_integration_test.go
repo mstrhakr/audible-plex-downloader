@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/audnexus"
-	"github.com/mstrhakr/audible-plex-downloader/internal/database"
+	"github.com/mstrhakr/audplexus/internal/audnexus"
+	"github.com/mstrhakr/audplexus/internal/database"
 )
 
 // TestRealAudnexusNaming tests the naming functions against real Audnexus API data.
@@ -159,3 +159,4 @@ func indexOfSubstring(s, substr string) int {
 	}
 	return -1
 }
+

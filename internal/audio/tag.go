@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/logging"
+	"github.com/mstrhakr/audplexus/internal/logging"
 )
 
 var tagLog = logging.Component("tagger")
@@ -114,3 +114,4 @@ func FormatMetadataString(meta Metadata) string {
 	}
 	return strings.Join(parts, " ")
 }
+

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/mstrhakr/audible-plex-downloader/internal/audnexus"
-	"github.com/mstrhakr/audible-plex-downloader/internal/database"
+	"github.com/mstrhakr/audplexus/internal/audnexus"
+	"github.com/mstrhakr/audplexus/internal/database"
 )
 
 // handleDownloadStage handles the download stage of the pipeline.
@@ -402,3 +402,4 @@ func emitProcessingProgress(dm *DownloadManager, item *pipelineItem, progress fl
 		Progress: progress,
 	})
 }
+

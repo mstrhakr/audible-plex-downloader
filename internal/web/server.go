@@ -24,11 +24,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/render"
-	"github.com/mstrhakr/audible-plex-downloader/internal/audnexus"
-	"github.com/mstrhakr/audible-plex-downloader/internal/database"
-	"github.com/mstrhakr/audible-plex-downloader/internal/library"
-	"github.com/mstrhakr/audible-plex-downloader/internal/logging"
-	"github.com/mstrhakr/audible-plex-downloader/internal/organizer"
+	"github.com/mstrhakr/audplexus/internal/audnexus"
+	"github.com/mstrhakr/audplexus/internal/database"
+	"github.com/mstrhakr/audplexus/internal/library"
+	"github.com/mstrhakr/audplexus/internal/logging"
+	"github.com/mstrhakr/audplexus/internal/organizer"
 	audible "github.com/mstrhakr/go-audible"
 )
 
@@ -1957,3 +1957,4 @@ func extractRegionFromPath(path string) string {
 	}
 	return ""
 }
+
