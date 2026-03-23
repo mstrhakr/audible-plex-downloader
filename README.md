@@ -1,4 +1,4 @@
-# Audible Plex Downloader
+# Audplexus
 
 ![Audplexus Logo](logo.svg)
 
